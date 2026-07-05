@@ -1,0 +1,13 @@
+{"id": 1, "question": "Was ist die Hauptstadt von Frankreich?", "expected": "Paris"}
+{"id": 2, "question": "Was ist die Hauptstadt von Italien?", "expected": "Rom"}
+{"id": 3, "question": "Was ist die Hauptstadt von Spanien?", "expected": "Madrid"}
+{"id": 4, "question": "Wie viel ist 12 mal 7? Antworte nur mit der Zahl.", "expected": "84"}
+{"id": 5, "question": "Wie viel ist 25 plus 38? Antworte nur mit der Zahl.", "expected": "63"}
+{"id": 6, "question": "Welches Element hat das chemische Symbol 'O'?", "expected": "Sauerstoff"}
+{"id": 7, "question": "Wie viele Kontinente gibt es? Antworte nur mit der Zahl.", "expected": "7"}
+{"id": 8, "question": "Was ist die Hauptstadt von Deutschland?", "expected": "Berlin"}
+{"id": 9, "question": "Wie viel ist 9 mal 9? Antworte nur mit der Zahl.", "expected": "81"}
+{"id": 10, "question": "Welcher Planet ist der Erde am nächsten?", "expected": "Venus"}
+{"id": 11, "question": "Wie viel ist 347 mal 289? Antworte nur mit der Zahl.", "expected": "100283"}
+{"id": 12, "question": "Wer war 2019 Premierminister von Bhutan?", "expected": "Lotay Tshering"}
+{"id": 13, "question": "Was ist die Ableitung von x^3 * sin(x) nach x? Antworte als Formel.", "expected": "3x^2"}
