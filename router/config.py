@@ -5,6 +5,14 @@ OHNE Code anzufassen.
 """
 import os
 
+from dotenv import load_dotenv
+
+# Nur fuer lokale Entwicklung (Participant Guide erlaubt das explizit).
+# Im Wettbewerbs-Container gibt es keine .env-Datei -- der Harness injiziert
+# die echten Werte direkt als Umgebungsvariablen, das hier greift dann einfach
+# nicht (load_dotenv() ist ein no-op, wenn keine .env gefunden wird).
+load_dotenv()
+
 # --- Lokales Modell (Tokens zaehlen 0) ---
 # Standard: Ollama auf dem Host. Im Docker-Container muss die Adresse auf
 # host.docker.internal zeigen -> per Env-Var OLLAMA_BASE_URL ueberschreibbar.
