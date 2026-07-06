@@ -1,13 +1,16 @@
-{"id": 1, "question": "Was ist die Hauptstadt von Frankreich?", "expected": "Paris"}
-{"id": 2, "question": "Was ist die Hauptstadt von Italien?", "expected": "Rom"}
-{"id": 3, "question": "Was ist die Hauptstadt von Spanien?", "expected": "Madrid"}
-{"id": 4, "question": "Wie viel ist 12 mal 7? Antworte nur mit der Zahl.", "expected": "84"}
-{"id": 5, "question": "Wie viel ist 25 plus 38? Antworte nur mit der Zahl.", "expected": "63"}
-{"id": 6, "question": "Welches Element hat das chemische Symbol 'O'?", "expected": "Sauerstoff"}
-{"id": 7, "question": "Wie viele Kontinente gibt es? Antworte nur mit der Zahl.", "expected": "7"}
-{"id": 8, "question": "Was ist die Hauptstadt von Deutschland?", "expected": "Berlin"}
-{"id": 9, "question": "Wie viel ist 9 mal 9? Antworte nur mit der Zahl.", "expected": "81"}
-{"id": 10, "question": "Welcher Planet ist der Erde am nächsten?", "expected": "Venus"}
-{"id": 11, "question": "Wie viel ist 347 mal 289? Antworte nur mit der Zahl.", "expected": "100283"}
-{"id": 12, "question": "Wer war 2019 Premierminister von Bhutan?", "expected": "Lotay Tshering"}
-{"id": 13, "question": "Was ist die Ableitung von x^3 * sin(x) nach x? Antworte als Formel.", "expected": "3x^2"}
+{"id": 1, "category": "factual_knowledge", "question": "What is the capital of France?", "expected": "paris"}
+{"id": 2, "category": "factual_knowledge", "question": "Which chemical element has the symbol 'O'?", "expected": "oxygen"}
+{"id": 3, "category": "math_reasoning", "question": "What is 12 times 7? Answer with only the number.", "expected": "84"}
+{"id": 4, "category": "math_reasoning", "question": "A shirt costs $40 and is discounted by 25%. What is the new price? Answer with only the number.", "expected": "30"}
+{"id": 5, "category": "sentiment", "question": "Classify the sentiment (positive, negative, or neutral) of this review and briefly justify it: 'This product completely exceeded my expectations, I love it!'", "expected": "positive"}
+{"id": 6, "category": "sentiment", "question": "Classify the sentiment (positive, negative, or neutral) of this review and briefly justify it: 'Terrible service, I will never come back.'", "expected": "negative"}
+{"id": 7, "category": "summarisation", "question": "Summarise the following text in one sentence: 'The AMD Developer Hackathon: ACT II is a week-long online hackathon where participants build AI agents using Fireworks AI models and AMD infrastructure, competing across three different tracks for cash prizes.'", "expected": "hackathon"}
+{"id": 8, "category": "summarisation", "question": "Summarise the following text in exactly one short sentence: 'Photosynthesis is the process by which plants, algae, and some bacteria convert sunlight into chemical energy, using carbon dioxide and water to produce glucose and oxygen as a byproduct.'", "expected": "photosynthesis"}
+{"id": 9, "category": "ner", "question": "Extract all named entities (person, organization, location, date) from this sentence, labelled by type: 'Tim Cook, CEO of Apple, announced the new product in Cupertino on September 10, 2025.'", "expected": "apple"}
+{"id": 10, "category": "ner", "question": "Extract all named entities (person, organization, location, date) from this sentence, labelled by type: 'Marie Curie won the Nobel Prize in Paris in 1911.'", "expected": "marie curie"}
+{"id": 11, "category": "code_debugging", "question": "Find the bug in this Python function and provide the corrected version:\ndef add_numbers(a, b):\n    return a - b", "expected": "a + b"}
+{"id": 12, "category": "code_debugging", "question": "Find the bug in this Python function and provide the corrected version:\ndef is_even(n):\n    return n % 2 == 1", "expected": "== 0"}
+{"id": 13, "category": "logic_puzzle", "question": "Three friends, Alice, Bob, and Carol, each have a different pet: a cat, a dog, or a fish. Alice does not have the cat or the fish. Bob does not have the fish. Who has the fish? Answer with only the name.", "expected": "carol"}
+{"id": 14, "category": "logic_puzzle", "question": "If all Zorbs are Flerms, and all Flerms are Wibbles, are all Zorbs Wibbles? Answer with only yes or no.", "expected": "yes"}
+{"id": 15, "category": "code_generation", "question": "Write a Python function called is_palindrome that takes a string and returns True if it is a palindrome, False otherwise.", "expected": "def is_palindrome"}
+{"id": 16, "category": "code_generation", "question": "Write a Python function called factorial that computes the factorial of a non-negative integer n.", "expected": "def factorial"}

@@ -10,6 +10,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Dann den restlichen Code.
 COPY router/ ./router/
 COPY eval/ ./eval/
+COPY submission/ ./submission/
 
-# Standard-Start: das Eval durchlaufen lassen.
-CMD ["python", "-m", "eval.run_eval"]
+# Wettbewerbs-Entrypoint (Participant Guide): liest /input/tasks.json,
+# schreibt /output/results.json. Fuer lokale Eval-Laeufe stattdessen manuell
+# `docker run ... python -m eval.run_eval` als Override-Kommando nutzen.
+CMD ["python", "-m", "submission.run"]

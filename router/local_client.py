@@ -17,10 +17,12 @@ def ask_local_raw(prompt, model=None):
 
 
 def ask_local(question, model=None):
+    # Prompt-Text muss Englisch sein: alle Antworten muessen laut Participant
+    # Guide auf Englisch sein, egal welche Sprache die Aufgabe selbst hat.
     prompt = (
-        f"Frage: {question}\n\n"
-        "Antworte in genau diesem Format:\n"
-        "ANTWORT: <deine Antwort>\n"
-        "VERTRAUEN: <Zahl von 0 bis 100, wie sicher du dir bist>"
+        f"Question: {question}\n\n"
+        "Respond in exactly this format:\n"
+        "ANSWER: <your answer, in English>\n"
+        "CONFIDENCE: <number from 0 to 100, how sure you are>"
     )
     return ask_local_raw(prompt, model=model)
