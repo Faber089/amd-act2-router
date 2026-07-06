@@ -1,6 +1,7 @@
 import ast
 import re
 
+from router import config
 from router.local_client import ask_local_raw
 
 _CODE_FENCE_RE = re.compile(r"```(?:python|py)?\s*\n(.*?)```", re.DOTALL)
@@ -52,12 +53,16 @@ def parse_local_answer(text, threshold=70):
     return answer, is_trustworthy, confidence
 
 
-def critique(question, answer, model="gemma2:2b"):
+def critique(question, answer, model=None):
     """
     Zweite, skeptische Prüfung: Bittet das lokale Modell, die gegebene Antwort
     kritisch auf Fehler zu pruefen (unabhaengig von der Selbsteinschaetzung oben).
     Gibt zurück: True = Antwort haelt der Kritik stand, False = Kritiker sieht Fehler.
     """
+    # Kein hartcodiertes Modell als Default (fruehere Version nutzte
+    # "gemma2:2b" fest, unabhaengig von LOCAL_MODEL) -- falls der Aufrufer
+    # nichts angibt, gilt dieselbe Konfiguration wie ueberall sonst im Router.
+    model = model or config.LOCAL_MODEL
     # Prompt-Text Englisch (siehe local_client.ask_local) -- betrifft auch
     # dieses interne Judge-Gespraech, auch wenn nur das Endergebnis (ANSWER)
     # tatsaechlich bewertet wird.
@@ -66,6 +71,35 @@ def critique(question, answer, model="gemma2:2b"):
         f"Given answer: {answer}\n\n"
         "Critically and precisely check whether the given answer is correct. "
         "Recalculate any numbers, verify facts. Be strict.\n"
+        "Respond in exactly this format:\n"
+        "VERDICT: CORRECT or INCORRECT"
+    )
+    text, _ = ask_local_raw(prompt, model=model)
+    verdict_match = re.search(r"VERDICT:\s*(CORRECT|INCORRECT)", text, re.IGNORECASE)
+    verdict = verdict_match.group(1).upper() if verdict_match else "INCORRECT"
+    return verdict == "CORRECT"
+
+
+def semantic_judge(question, answer, expected, model=None):
+    """
+    NUR fuer die eigene Eval (eval/run_eval.py), NICHT Teil der Routing-Logik.
+    Grober Substring-Match kann bei freien Antworten (Summarization, NER,
+    Sentiment-Begruendung) falsch-negativ sein, wenn die Antwort inhaltlich
+    richtig ist, aber anders formuliert (real erlebt: eine korrekte
+    Zusammenfassung, die nicht das exakt erwartete Wort enthielt). Diese
+    Funktion laesst das lokale Modell selbst beurteilen, ob die Antwort die
+    erwarteten Kernfakten sinngemaess trifft -- als informeller Vergleichswert
+    neben dem Substring-Check, NICHT als Ersatz (der echte Wettbewerbs-Judge
+    ist unbekannt, das hier ist nur unsere beste Annaeherung).
+    """
+    model = model or config.LOCAL_MODEL
+    prompt = (
+        f"Question: {question}\n"
+        f"Expected key facts: {expected}\n"
+        f"Given answer: {answer}\n\n"
+        "Does the given answer correctly convey the expected key facts, "
+        "even if worded differently? Ignore exact phrasing, judge only "
+        "whether the meaning matches.\n"
         "Respond in exactly this format:\n"
         "VERDICT: CORRECT or INCORRECT"
     )

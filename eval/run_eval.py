@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from router.main import route
+from router.judge import semantic_judge
 
 TASKS_FILE = Path(__file__).parent / "tasks.jsonl"
 
@@ -20,13 +21,29 @@ def normalize(s):
 
 
 def is_correct(answer, expected):
+    """
+    Grober Substring-Check. `expected` darf ein einzelner String (Antwort
+    muss ihn enthalten) oder eine Liste akzeptierter Stichwoerter sein (schon
+    EINES davon reicht) -- letzteres fuer freie Kategorien (Summarization,
+    NER), wo eine einzelne feste Phrase zu streng waere.
+    Achtung: das ist eine grobe Annaeherung, NICHT der echte Judge-Mechanismus
+    des Wettbewerbs (LLM-Judge, siehe semantic_judge() fuer den Vergleichswert).
+    """
+    if isinstance(expected, list):
+        return any(normalize(e) in normalize(answer) for e in expected)
     return normalize(expected) in normalize(answer)
+
+
+def expected_as_text(expected):
+    return ", ".join(expected) if isinstance(expected, list) else expected
 
 
 def main():
     tasks = load_tasks()
     total_tokens = 0
     correct_count = 0
+    judged_correct_count = 0
+    disagreements = []
     records = []  # (confidence, correct, source) fuer die Kalibrierungs-Tabelle
 
     for task in tasks:
@@ -37,19 +54,35 @@ def main():
             print(f"[{task['id']:>2}] FEHLER  | {exc}")
             answer, tokens, source = "", 0, "error"
         correct = is_correct(answer, task["expected"])
+        # Zweite, informelle Einschaetzung durchs lokale Modell selbst (0
+        # Tokens, kostet nur etwas Zeit) -- zeigt, wo der grobe Substring-
+        # Check moeglicherweise vom Sinn der Antwort abweicht.
+        judged_correct = semantic_judge(task["question"], answer, expected_as_text(task["expected"]))
         correct_count += int(correct)
+        judged_correct_count += int(judged_correct)
         total_tokens += tokens
         records.append((stats.get("confidence"), correct, source))
+        if correct != judged_correct:
+            disagreements.append((task["id"], correct, judged_correct))
 
         status = "OK" if correct else "FALSCH"
-        print(f"[{task['id']:>2}] {status:6} | Quelle: {source:6} | Conf: {str(stats.get('confidence')):>4} | Tokens: {tokens:4} | Frage: {task['question']}")
+        judge_flag = "" if correct == judged_correct else f" (LLM-Richter: {'OK' if judged_correct else 'FALSCH'})"
+        print(f"[{task['id']:>2}] {status:6} | Quelle: {source:6} | Conf: {str(stats.get('confidence')):>4} | Tokens: {tokens:4}{judge_flag} | Frage: {task['question']}")
         if not correct:
-            print(f"       -> Erwartet: '{task['expected']}' | Antwort war: {answer[:100]}")
+            print(f"       -> Erwartet: '{expected_as_text(task['expected'])}' | Antwort war: {answer[:100]}")
 
     accuracy = correct_count / len(tasks) * 100
+    judged_accuracy = judged_correct_count / len(tasks) * 100
     print("\n=== ERGEBNIS ===")
-    print(f"Accuracy: {accuracy:.1f}% ({correct_count}/{len(tasks)})")
+    print(f"Accuracy (grober Substring-Check): {accuracy:.1f}% ({correct_count}/{len(tasks)})")
+    print(f"Accuracy (informeller LLM-Richter): {judged_accuracy:.1f}% ({judged_correct_count}/{len(tasks)})")
     print(f"Gesamt-Tokens (fürs Leaderboard): {total_tokens}")
+    if disagreements:
+        print(f"\n⚠️  {len(disagreements)} Aufgabe(n), wo beide Methoden nicht übereinstimmen:")
+        for task_id, sub_ok, judge_ok in disagreements:
+            print(f"   [{task_id}] Substring={'OK' if sub_ok else 'FALSCH'} vs. LLM-Richter={'OK' if judge_ok else 'FALSCH'}")
+        print("   -> Weder Substring-Check noch dieser LLM-Richter sind der echte Wettbewerbs-Judge.")
+        print("      Bei Uneinigkeit die Antwort selbst nochmal lesen, nicht blind einer Zahl vertrauen.")
 
     # Kalibrierungs-Tabelle: wie oft ist die LOKALE Antwort korrekt, je nach
     # Selbst-Confidence? Damit laesst sich CONFIDENCE_THRESHOLD aus Daten
