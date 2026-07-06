@@ -3,7 +3,7 @@ import re
 from router import config
 from router.local_client import ask_local
 from router.remote_client import ask_remote
-from router.judge import parse_local_answer, critique
+from router.judge import parse_local_answer, critique, looks_like_code, extract_code, is_valid_python
 
 
 def _norm(s):
@@ -55,6 +55,17 @@ def route(question, confidence_threshold=None, local_model=None,
             reason = f"Selbst-Check widerspricht ('{answer[:30]}' vs '{check_answer[:30]}')"
             if stats is not None:
                 stats["selfcheck_disagreed"] = True
+
+    # Objektiver Code-Check (lokal = 0 Tokens, kein exec, nur ast.parse):
+    # deckt Code Debugging/Generation ab, wo Selbst-Konsistenz wegen der
+    # Antwortlaenge nicht greift. Syntaktisch kaputter Code kann in keiner
+    # der beiden Kategorien jemals korrekt sein -> zwingend eskalieren.
+    if not escalate and looks_like_code(answer):
+        if not is_valid_python(extract_code(answer)):
+            escalate = True
+            reason = f"Vertrauen={confidence} ok, aber Code-Syntax ungueltig"
+            if stats is not None:
+                stats["code_syntax_invalid"] = True
 
     if not escalate:
         if verbose:

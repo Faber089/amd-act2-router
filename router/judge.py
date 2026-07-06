@@ -1,6 +1,37 @@
+import ast
 import re
 
 from router.local_client import ask_local_raw
+
+_CODE_FENCE_RE = re.compile(r"```(?:python|py)?\s*\n(.*?)```", re.DOTALL)
+
+
+def looks_like_code(answer):
+    """Heuristik: enthaelt die Antwort einen Code-Block oder eine Funktions-/
+    Klassendefinition? Nur dann macht ein Syntax-Check ueberhaupt Sinn."""
+    return bool(_CODE_FENCE_RE.search(answer)) or bool(
+        re.search(r"^\s*(def |class )", answer, re.MULTILINE)
+    )
+
+
+def extract_code(answer):
+    """Holt den reinen Code aus einem Markdown-Codeblock, falls vorhanden,
+    sonst wird die ganze Antwort als Code behandelt."""
+    match = _CODE_FENCE_RE.search(answer)
+    return match.group(1) if match else answer
+
+
+def is_valid_python(code):
+    """Rein syntaktischer Check (ast.parse, kein exec!) -- sicher, weil
+    nichts ausgefuehrt wird, aber deckt eine ganze Fehlerklasse ab: Code,
+    der plausibel aussieht, aber gar nicht laeuft. Objektiv statt
+    Selbsteinschaetzung, genau fuer die Kategorien wo eine Pruefung moeglich
+    ist (Code Debugging, Code Generation)."""
+    try:
+        ast.parse(code)
+        return True
+    except SyntaxError:
+        return False
 
 
 def parse_local_answer(text, threshold=70):
