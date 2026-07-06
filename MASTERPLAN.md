@@ -225,8 +225,10 @@ Zusätzlich aus der Kickoff-Mail bestätigt/neu:
 
 **✅ AUFGELÖST (Participant Guide PDF, 6.7. abends erhalten):** Aufgaben-Kategorien, erlaubte Modelle, Docker-I/O-Vertrag, Umgebungsvariablen, Laufzeit-/Größen-Limits und der zweistufige Scoring-Mechanismus sind jetzt alle in Abschnitt 3 dokumentiert. Das PDF ist die vollständigste bisher erhaltene Quelle — deutlich detaillierter als Stream-Folien oder Kickoff-Mail.
 
-**Jetzt noch offen (fürs Q&A oder Discord, falls Zweifel bleiben):**
-- [ ] Exakte Zahl der Accuracy-Gate-Schwelle (PDF nennt nur den Mechanismus: LLM-Judge, keine konkrete Prozentzahl)
+**✅ Pflicht-Anforderung verifiziert (7.7.):** `docker buildx build --platform linux/amd64 --load .` baut fehlerfrei, `docker inspect` bestätigt `"Architecture": "amd64"` + `"Os": "linux"` — genau der geforderte Manifest-Typ. Funktionstest im amd64-Image erfolgreich (Aufgabe korrekt gelöst, Exit 0). Damit ist die härteste, leicht übersehbare Anforderung ("sonst Pull-Fehler = 0 Punkte") bestätigt erfüllt, nicht nur angenommen.
+
+**Discord-Q&A abgeschlossen (7.7.) — laut Sebastian keine offenen Rückfragen mehr.** Verbleibend nur noch, was ohnehin nicht extern klärbar war:
+- [ ] Exakte Zahl der Accuracy-Gate-Schwelle (PDF nennt nur den Mechanismus: LLM-Judge, keine konkrete Prozentzahl — auch nach dem Q&A nicht genannt)
 - [ ] Genaue Anzahl/Beispiele der Test-Prompts pro Kategorie (PDF sagt bewusst: "Exact evaluation inputs are intentionally omitted" — müssen selbst Testfragen pro der 8 Kategorien bauen)
 - [ ] Container-Registry-Wahl: GitHub Container Registry (ghcr.io, nutzt denselben Faber089-GitHub-Account) vs. Docker Hub — noch zu entscheiden und einzurichten
 - [ ] Details AMD-Cloud-GPU-Zugang + zusätzliche Hackathon-Credits (falls für Fine-Tuning/Entwicklung relevant — für reines Fireworks-Routing evtl. nicht nötig)
