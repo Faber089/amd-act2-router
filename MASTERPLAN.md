@@ -237,6 +237,13 @@ Zusätzlich aus der Kickoff-Mail bestätigt/neu:
 
 **🔑 Kern-Erkenntnis aus der Übung (5./6.7.):** Reines Selbst-Vertrauen des lokalen Modells als Judge ist nicht robust genug — ein Modell kann überzeugt falsch liegen. Für die finale Lösung braucht es vermutlich eine zusätzliche Absicherung, z. B.: Aufgaben-Typ-Erkennung vor der Antwort (z. B. Rechenaufgaben mit großen Zahlen grundsätzlich eskalieren), Selbst-Konsistenz-Check (Frage zweimal anders formuliert stellen, bei Widerspruch eskalieren), oder härtere Heuristiken statt nur einer Vertrauens-Zahl vom Modell selbst.
 
+**✅ Umgesetzt (6.7. spät, nach Recherche zu tokeneffizientem Routing — Quellen: UCCI-Paper arxiv 2605.18796 zu kalibrierten Cascade-Schwellen, Concise-CoT arxiv 2401.05618):**
+- **Selbst-Konsistenz-Check** (`USE_SELFCHECK=1`, default an): kurze vertrauenswürdige lokale Antworten (≤80 Zeichen) werden ein zweites Mal lokal erfragt — kostenlos, da lokale Tokens = 0. Widerspruch → Eskalation. **Eval-Beleg:** Kalibrierungstabelle zeigte 3 von 5 Fehlern bei Confidence=100 (Schwelle allein kann die nie fangen); mit Selbst-Check eskalieren alle 6 schweren Fehlaufgaben korrekt, nur 2 unnötige Eskalationen bei richtigen Antworten. Kern-Insight: **lokale Rechenzeit ist im Scoring gratis** — beliebig viele lokale Gegenchecks kosten nichts außer Latenz (~2s/Task, Budget 30s).
+- **Remote-Kappung:** `REMOTE_MAX_TOKENS` (default 512) + Kürze-Anweisung im Eskalations-Prompt ("Answer concisely and directly, no preamble"). Knappe Antworten sparen Completion-Tokens und verbessern laut Concise-CoT-Forschung bei großen Modellen teils sogar die Accuracy.
+- **Remote-Fehler-Fallback:** schlägt die Eskalation fehl, wird die (unsichere) lokale Antwort geliefert statt `""` — leer fällt beim Accuracy-Gate garantiert durch, lokal hat eine Chance.
+- **Kalibrierungs-Tabelle in der Eval** (`run_eval.py`): zeigt pro Confidence-Bereich, wie oft die lokale Antwort korrekt war → `CONFIDENCE_THRESHOLD` datenbasiert wählen statt raten.
+- **Eval verschärft:** 22 Aufgaben (16 normale + 6 schwere: große Multiplikation, obskures Wissen, harte Logik). Stand: 72,7 % lokal-only — die 6 schweren würden auf dem echten Harness eskalieren und vom großen Modell sehr wahrscheinlich korrekt beantwortet (lokal nicht testbar wegen der bekannten Modell-ID-Lücke, s. o.).
+
 ## 9. SUPPORT-WEGE
 
 | Problem | Anlaufstelle |
