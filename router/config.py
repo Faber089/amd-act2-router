@@ -29,7 +29,9 @@ REMOTE_BASE_URL = os.environ.get(
 )
 ALLOWED_MODELS = [
     m.strip()
-    for m in os.environ.get("ALLOWED_MODELS", "gemma-4-26b-a4b-it").split(",")
+    for m in os.environ.get(
+        "ALLOWED_MODELS", "accounts/fireworks/models/gemma-4-26b-a4b-it"
+    ).split(",")
     if m.strip()
 ]
 # REMOTE_MODEL erlaubt gezieltes Testen gegen ein bestimmtes Modell aus der
