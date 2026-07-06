@@ -102,6 +102,12 @@ docker run --rm \
 `input/tasks.json` lokal selbst anlegen (Format: `[{"task_id": "t1", "prompt": "..."}]`),
 Ergebnis erscheint danach in `output/results.json`.
 
+> **Windows/Git-Bash-Hinweis (verifiziert):** `$(pwd)`-Pfade werden von Git
+> Bash manchmal falsch nach Windows übersetzt, wodurch die Mounts leer
+> bleiben (`could not read /input/tasks.json`). Funktioniert zuverlässig mit
+> nativen Windows-Pfaden und `MSYS_NO_PATHCONV=1` davor, z. B.:
+> `MSYS_NO_PATHCONV=1 docker run --rm -v "C:/Pfad/zu/input:/input" -v "C:/Pfad/zu/output:/output" ...`
+
 > Hinweis: Aus dem Container heraus ist das Ollama auf dem Host über
 > `host.docker.internal` erreichbar, nicht über `localhost`.
 
