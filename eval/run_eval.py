@@ -29,7 +29,11 @@ def main():
     correct_count = 0
 
     for task in tasks:
-        answer, tokens, source = route(task["question"], verbose=False)
+        try:
+            answer, tokens, source = route(task["question"], verbose=False)
+        except Exception as exc:
+            print(f"[{task['id']:>2}] FEHLER  | {exc}")
+            answer, tokens, source = "", 0, "error"
         correct = is_correct(answer, task["expected"])
         correct_count += int(correct)
         total_tokens += tokens

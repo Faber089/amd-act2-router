@@ -8,7 +8,10 @@ def parse_local_answer(text, threshold=70):
     Liest aus der lokalen Modellantwort die ANSWER und das CONFIDENCE heraus.
     Gibt zurück: (antwort_text, ist_vertrauenswuerdig)
     """
-    answer_match = re.search(r"ANSWER:\s*(.+?)(?:\n|$)", text, re.DOTALL)
+    # Nicht am ersten Zeilenumbruch stoppen (frueherer Bug) -- sonst wird
+    # mehrzeiliger Code/Text in der Antwort fast komplett abgeschnitten.
+    # Stattdessen alles bis zum CONFIDENCE-Marker (oder Textende) einfangen.
+    answer_match = re.search(r"ANSWER:\s*(.+?)(?=\s*CONFIDENCE:|\Z)", text, re.DOTALL)
     confidence_match = re.search(r"CONFIDENCE:\s*(\d+)", text)
 
     answer = answer_match.group(1).strip() if answer_match else text.strip()

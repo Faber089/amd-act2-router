@@ -19,10 +19,15 @@ def ask_local_raw(prompt, model=None):
 def ask_local(question, model=None):
     # Prompt-Text muss Englisch sein: alle Antworten muessen laut Participant
     # Guide auf Englisch sein, egal welche Sprache die Aufgabe selbst hat.
+    # Zusatzhinweis fuer Code-Aufgaben (Debugging/Generation): ohne diesen
+    # erklaert das Modell den Code nur in Prosa, statt ihn zu liefern.
     prompt = (
         f"Question: {question}\n\n"
         "Respond in exactly this format:\n"
         "ANSWER: <your answer, in English>\n"
-        "CONFIDENCE: <number from 0 to 100, how sure you are>"
+        "CONFIDENCE: <number from 0 to 100, how sure you are>\n\n"
+        "If the question asks you to write, fix, or generate code, the ANSWER "
+        "must contain the actual code itself (e.g. a complete function), not "
+        "a description of what the code does or what is wrong with it."
     )
     return ask_local_raw(prompt, model=model)
