@@ -41,6 +41,8 @@ lokales Modell  ──►  Judge (Vertrauen ≥ Schwelle?)  ──► [ja]  loka
 | `router/main.py` | Die Cascade-Logik (`route()`) |
 | `eval/tasks.jsonl` | Testaufgaben mit erwarteten Antworten |
 | `eval/run_eval.py` | Misst Genauigkeit + Gesamt-Tokenverbrauch |
+| `demo/app.py` | FastAPI-Demo-App, wrappt `route()` für die Submission-Pflicht "Demo-Application-URL" |
+| `demo/static/index.html` | Ein-Seiten-UI für die Demo (Vanilla JS, kein Build-Schritt) |
 
 ## Konfiguration (Umgebungsvariablen)
 
@@ -82,6 +84,35 @@ docker run --rm \
 
 > Hinweis: Aus dem Container heraus ist das Ollama auf dem Host über
 > `host.docker.internal` erreichbar, nicht über `localhost`.
+
+## Demo
+
+Eine minimale Web-Demo (`demo/app.py`, FastAPI) wrappt `route()` direkt — sie
+zeigt pro Anfrage die gestellte Frage, ob lokal oder remote geantwortet wurde,
+die Antwort selbst, den Tokenverbrauch dieser Anfrage sowie eine laufende
+Gesamtstatistik (Anteil kostenlos lokal beantworteter Anfragen, Tokens
+insgesamt).
+
+```bash
+docker build -f Dockerfile.demo -t amd-act2-demo .
+
+docker run --rm -p 8000:8000 \
+  -e FIREWORKS_API_KEY="dein-key" \
+  -e OLLAMA_BASE_URL="http://host.docker.internal:11434/v1" \
+  amd-act2-demo
+```
+
+Dann `http://localhost:8000` öffnen. Für eine öffentlich erreichbare URL
+(Submission-Pflicht) läuft die Demo lokal weiter und wird per
+[ngrok](https://ngrok.com) getunnelt, damit das lokale Modell (Ollama) über
+den Container hinweg erreichbar bleibt und "lokal = 0 Tokens" auch in der
+Demo real gilt:
+
+```bash
+ngrok http 8000
+```
+
+**Live-Demo-URL:** _(hier vor der Einreichung eintragen)_
 
 ## Status
 

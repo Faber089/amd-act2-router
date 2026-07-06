@@ -35,7 +35,7 @@
 | Format | Komplett online, kostenlos, Solo erlaubt |
 | Zeitraum | **6.–11. Juli 2026** |
 | Submission-Deadline | **11. Juli 2026, 15:00 UTC = 17:00 deutsche Zeit** |
-| Preisgeld | $21.000 Haupt-Pool (pro Track: $2.500/$1.500/$1.000) + $6.000 Gemma-Sonderpreise |
+| Preisgeld | $20.000+ Haupt-Pool + $6.000 „Best Use of Gemma 4"-Sonderpreis (trackübergreifend) + Natively AI Challenge (Native.builder-Zugang) — offiziell laut Kickoff-Mail 6.7. |
 | Infrastruktur | AMD Developer Cloud (AMD-GPUs, z. B. MI300X), ROCm, Fireworks AI API |
 | Credits | $50 Fireworks-API-Credits für alle Teilnehmer + $100 AMD-Cloud- und $50 Fireworks-Credits für neue ADP-Mitglieder; zusätzliche Hackathon-Credits werden am Start verteilt |
 | Event-Seite | https://lablab.ai/ai-hackathons/amd-developer-hackathon-act-ii |
@@ -65,7 +65,7 @@
 
 **Warum dieser Track für Sebastian:** Beginner-Track mit dem höchsten Lernwert (genau die Kernskills modernen AI-Engineerings), objektives Leaderboard = kein Solo-Nachteil, und seine Ollama-Vorerfahrung passt exakt (lokale vs. Remote-Modelle ist das Kernthema).
 
-**Bonus-Chance:** Gemma-Sonderpreis „Best Use of Gemma via Fireworks" ($1.000 extra in Track 1) — wenn die erlaubten Modelle Gemma enthalten, Gemma einsetzen und im README dokumentieren.
+**Bonus-Chance:** Sonderpreis „Best Use of Gemma 4" ($6.000-Pool, trackübergreifend, nicht Track-1-exklusiv) — wenn die erlaubten Modelle Gemma 4 enthalten, Gemma 4 einsetzen und im README dokumentieren.
 
 ---
 
@@ -104,13 +104,13 @@ amd-act2-router/
 
 | Tag | Phase | Inhalt | Fertig-Kriterium |
 |---|---|---|---|
-| **Sa 5.7.** | Vorbereitung | 0.1 Accounts checken (lablab-Dashboard, Fireworks-API-Key, beide Discords) · 0.2 Umgebung (Docker-hello-world, 2 Ollama-Modelle in 2 Größen, GitHub-Repo) · 0.3 Docker-Crashkurs 90 min · 0.4 LLM-API-Crashkurs 90 min (gleicher Code lokal + remote, Tokens auslesen) · 0.5 **Kernübung: kompletten Übungs-Router bauen** (4–6 h) · 0.6 abends 30 min DeepLearning.AI | `docker run` lässt Übungs-Eval durchlaufen und liefert Accuracy + Tokens |
-| **So 6.7.** | Kickoff | Vormittags Kickoff verfolgen, `kickoff-notizen.md` anlegen: Aufgaben? erlaubte Modelle? Specs der Scoring-Umgebung? Accuracy-Schwelle? Submit-Prozess? · Hackathon-Credits einlösen · AMD-Cloud-Zugang einrichten · Nachmittags **2 Baselines**: alles-lokal (Tokens 0, Accuracy?) und alles-remote (Accuracy-Maximum, Token-Maximum) | Beide Baseline-Zahlen dokumentiert |
-| **Mo 7.7.** | Iteration | Eval-Harness auf echte Aufgaben umstellen · Router v1 (Cascade) auf echte Modelle portieren | v1 läuft gegen echte Aufgaben, Zahlen protokolliert |
-| **Di 8.7.** | Iteration | v1 tunen: Judge-Varianten, Eskalations-Schwelle, Prompt-Kürzung, `max_tokens` | Messbar besser als Mo |
-| **Mi 9.7.** | Iteration | v2 (Vorab-Klassifikation) testen · Gemma-Bonus einbauen falls möglich · **abends Feature-Freeze**, Git-Tag `v1.0` | Beste Version eingefroren |
-| **Do 10.7.** | Submission-Paket | Container von frischem Klon durchtesten · README (Architektur + Ergebnistabelle) · Demo-Video 2–3 min (OBS) · Slides 5–7 Stück · Cover-Bild | Alles Material fertig |
-| **Fr 11.7.** | Abgabe | Alle lablab.ai-Felder ausfüllen, **spätestens 14:00 deutscher Zeit** submitten (Deadline 17:00), Bestätigung screenshotten | Submission bestätigt |
+| **So 5.7.** | Vorbereitung | 0.1 Accounts checken (lablab-Dashboard, Fireworks-API-Key, beide Discords) · 0.2 Umgebung (Docker-hello-world, 2 Ollama-Modelle in 2 Größen, GitHub-Repo) · 0.3 Docker-Crashkurs 90 min · 0.4 LLM-API-Crashkurs 90 min (gleicher Code lokal + remote, Tokens auslesen) · 0.5 **Kernübung: kompletten Übungs-Router bauen** (4–6 h) · 0.6 abends 30 min DeepLearning.AI | `docker run` lässt Übungs-Eval durchlaufen und liefert Accuracy + Tokens |
+| **Mo 6.7.** | Kickoff | Vormittags Kickoff verfolgen, `kickoff-notizen.md` anlegen: Aufgaben? erlaubte Modelle? Specs der Scoring-Umgebung? Accuracy-Schwelle? Submit-Prozess? · Hackathon-Credits einlösen · AMD-Cloud-Zugang einrichten · Nachmittags **2 Baselines**: alles-lokal (Tokens 0, Accuracy?) und alles-remote (Accuracy-Maximum, Token-Maximum) | Beide Baseline-Zahlen dokumentiert |
+| **Di 7.7.** | Iteration | Eval-Harness auf echte Aufgaben umstellen · Router v1 (Cascade) auf echte Modelle portieren | v1 läuft gegen echte Aufgaben, Zahlen protokolliert |
+| **Mi 8.7.** | Iteration | v1 tunen: Judge-Varianten, Eskalations-Schwelle, Prompt-Kürzung, `max_tokens` · **Demo-App bauen** (FastAPI-Wrapper um `route()`, ~2–3 h, Nebenaufgabe — siehe Abschnitt 11) | Messbar besser als Di · Demo-App lokal lauffähig |
+| **Do 9.7.** | Iteration | v2 (Vorab-Klassifikation) testen · Gemma-Bonus einbauen falls möglich · **abends Feature-Freeze**, Git-Tag `v1.0` | Beste Version eingefroren |
+| **Fr 10.7.** | Submission-Paket | Container von frischem Klon durchtesten · README (Architektur + Ergebnistabelle) · Demo-Video 2–3 min (OBS) · Slides 5–7 Stück · Cover-Bild · Demo-App per ngrok final hosten, URL notieren | Alles Material fertig |
+| **Sa 11.7.** | Abgabe | Alle lablab.ai-Felder ausfüllen, **spätestens 14:00 deutscher Zeit** submitten (Deadline 17:00), Bestätigung screenshotten | Submission bestätigt |
 
 ---
 
@@ -139,23 +139,29 @@ Jede KI, die Sebastian unterstützt, hält sich an diese vier Regeln:
 Weitere Arbeitsprinzipien:
 - Keine Änderung ohne Eval-Messung davor/danach
 - Bei Zeitnot: Scope halbieren — eine saubere v1-Submission schlägt eine unfertige v2
-- NICHT lernen/bauen: ROCm-/GPU-Programmierung im Detail (fertige Endpoints reichen), Fine-Tuning (erlaubt, aber falsche Baustelle in 5 Tagen), Web-Frontend (Leaderboard-Track, keine UI nötig)
+- NICHT lernen/bauen: ROCm-/GPU-Programmierung im Detail (fertige Endpoints reichen), Fine-Tuning (erlaubt, aber falsche Baustelle in 5 Tagen)
+- **Korrektur:** Ein minimales Web-Frontend IST nötig — Submission verlangt eine „Demo-Application-URL" (alle Tracks, s. Abschnitt 6). Bewusst klein halten (siehe Abschnitt 11) — es ist eine Pflicht-Checkbox, nicht das leaderboard-gewertete Kernstück
 
 ---
 
 ## 8. OFFENE PUNKTE (werden am Kickoff geklärt → hier nachtragen!)
 
-**Update 6.7.:** Kickoff-Inhalte (Aufgaben, Modelle, Credits) sind laut lablab-Dashboard/Discord noch nicht veröffentlicht — kommen **morgen (7.7.)**. Phase 1 im Zeitplan verschiebt sich entsprechend um einen Tag; wir nutzen den heutigen Tag weiter für Übung/Vorbereitung (Phase 0).
+**KORREKTUR 6.7. (per offizieller Kickoff-Mail von lablab.ai, heute erhalten):** Die frühere Annahme „Kickoff-Inhalte kommen erst morgen (7.7.)" war **falsch** — es gab schlicht noch keine Veröffentlichung, weil der Kickoff-Stream erst **heute Abend, 18:00 CET** läuft (danach 19:00 CET Discord-Q&A auf lablab.ai-Discord). **Phase 1 (Kickoff) findet also wie ursprünglich geplant HEUTE (6.7.) statt, keine Tagesverschiebung.** Baselines (Schritt 1.2) und `kickoff-notizen.md` entsprechend heute Abend/danach angehen, nicht erst morgen.
+
+Zusätzlich aus der Kickoff-Mail bestätigt/neu:
+- Prize Pool offiziell **$20.000+** (Tabelle in Abschnitt 2 unten korrigiert von $21.000)
+- Gemma-Bonus heißt **„Best Use of Gemma 4"**, $6.000-Pool, **trackübergreifend** (nicht $1.000 exklusiv für Track 1 — Abschnitt 3 korrigiert)
+- Neue Bonus-Challenge „Natively AI Challenge" (Zugang zu Native.builder) — für Track 1 nicht nötig, kein Handlungsbedarf
+- Workshop „Build Your First Lightweight App with Native.Builder": **Di 7.7., 18:00 CET**, lablab.ai-Discord — optional, betrifft Track 1 nicht direkt
+- **Offene Frage für den Discord-Q&A heute 19:00 CET:** Braucht Track 1 wirklich eine live erreichbare Demo-URL, oder reicht ein einfacher Link (Repo/Video)? Antwort hier nachtragen. Der Bau der Demo-App (Abschnitt 11) läuft unabhängig davon weiter — lohnt sich so oder so fürs Demo-Video —, nur der Hosting-Aufwand (ngrok, siehe Abschnitt 11) könnte sich dadurch erübrigen.
 
 **Stand Ende 6.7. — Grundgerüst fertig & getestet (Ordner `amd-act2-router/`):**
 - ✅ Cascade-Router läuft (lokal zuerst → bei Unsicherheit Fireworks), komplett über Umgebungsvariablen konfigurierbar (`router/config.py`)
 - ✅ Eval-Harness misst Genauigkeit + Tokenverbrauch (`eval/run_eval.py`, 13 Übungsaufgaben)
 - ✅ Containerized — Docker-Image baut, Container erreicht Host-Ollama via `host.docker.internal` (verifiziert)
 - ✅ README, MIT-LICENSE, .gitignore (schützt vor Key-Leak), requirements.txt
-- ✅ Lokal committet auf Branch `main` (Git-Account: **Sebastian0890**)
-- ⏳ **OFFEN: GitHub-Push** — blockiert, weil zwei Entscheidungen anstehen:
-  1. **Account-Diskrepanz:** Git/`gh` ist als **Sebastian0890** angemeldet, aber im AMD-Formular wurde **github.com/faber089** als Verifizierungsprofil angegeben. Für eine konsistente Submission sollten Repo-Account und AMD-Profil zusammenpassen → klären, welcher Account gilt.
-  2. **Öffentlich vs. privat:** Submission verlangt am Ende ein **öffentliches** Repo; bis dahin könnte es privat bleiben.
+- ✅ **GitHub-Push erledigt:** Repo live unter https://github.com/Faber089/amd-act2-router (aktuell **privat** — vor Submission auf öffentlich stellen). Account-Diskrepanz gelöst: Sebastians echter GitHub-Account ist **Faber089**; der lokal via `git`/`gh` angemeldete Account (Sebastian0890) hat keinen Zugriff auf Faber089-Repos → Pushes über die Kommandozeile schlagen deshalb fehl. **Für alle künftigen Commits: Push über GitHub Desktop**, nicht über CLI.
+- Projektordner lokal auch gespiegelt unter `C:\Users\iq\Documents\GitHub\amd-act2-router` (das ist die per GitHub Desktop verbundene Kopie).
 - 🔧 **Modellwahl aktuell:** lokal `gemma2:2b` (schnell), remote `gpt-oss-120b`. Kritiker (`USE_CRITIQUE`) standardmäßig AUS (eskalierte in der Übung zu viel). Morgen mit echten Aufgaben/Modellen neu justieren.
 
 - [ ] Konkrete Aufgaben des Tracks (Input-/Output-Format)
@@ -181,6 +187,32 @@ Weitere Arbeitsprinzipien:
 - Offizielle Event-Seite: https://lablab.ai/ai-hackathons/amd-developer-hackathon-act-ii
 - AMD-Ankündigung: https://www.amd.com/en/developer/resources/technical-articles/2026/build-across-the-ai-stack--join-the-amd-x-lablab-ai-hackathon-.html
 - Fireworks-Doku: https://docs.fireworks.ai · ROCm-Doku: https://rocm.docs.amd.com · Gemma: https://ai.google.dev/gemma
+- Kickoff-E-Mail von lablab.ai, erhalten 6.7.2026, 18:00 CET Stream angekündigt („AMD AI DEVELOPER HACKATHON ACT II KICKS OFF TODAY")
+
+---
+
+## 11. DEMO-APP (Submission-Pflicht: Demo-Application-URL)
+
+**Warum nötig:** Die Submission-Checkliste (Abschnitt 6) verlangt für **alle Tracks** eine Demo-Application-URL. Das Router-Projekt ist aktuell ein reines CLI-/Batch-Eval-Tool ohne Web-Anbindung — diese Lücke muss geschlossen werden.
+
+**Entscheidung:** Erst selbst bauen (bekannter Stack, garantiert die Pflicht) — Native.builder-Version ist optionaler Stretch-Goal für den „Natively AI Challenge"-Bonus, kein kritischer Pfad. Hosting: eigener Rechner + ngrok-Tunnel (Ollama bleibt lokal → „lokal = 0 Tokens" bleibt für die Demo echt wahr).
+
+**Stack:** FastAPI + eine statische `index.html` (Vanilla-JS `fetch()`, kein Build-Schritt) — schnellster Weg ohne neue Denkmodelle, ruft `router.main.route()` direkt auf (keine Duplikat-Logik).
+
+**Neue/geänderte Dateien in `amd-act2-router/`:**
+- `demo/app.py` — FastAPI-App. `GET /` liefert `index.html`, `POST /ask {question}` ruft `route(question, verbose=False)` auf (Rückgabe: `(answer, tokens, source)`), hängt an In-Memory-Historie an, gibt JSON inkl. laufender Gesamtwerte zurück.
+- `demo/static/index.html` — Texteingabe + Submit, Ergebnisbereich, Statistik-Fußzeile.
+- `requirements.txt` — ergänzt um `fastapi`, `uvicorn[standard]`.
+- `Dockerfile.demo` (neu, Projekt-Root) — gleiche COPY-Schritte wie das bestehende `Dockerfile`, CMD auf `uvicorn demo.app:app --host 0.0.0.0 --port 8000`. Bestehendes `Dockerfile` (Eval-Pfad) bleibt unangetastet.
+- `README.md` — neuer Abschnitt „Demo": was sie zeigt, Build-/Run-Befehle, ngrok-Hinweis, Platzhalter für die finale URL.
+
+**UI zeigt pro Anfrage:** gestellte Frage, Quelle (Badge „Lokal — 0 Tokens" vs. „Remote (Fireworks) — eskaliert"), Antworttext, Tokens dieser Anfrage, laufende Gesamtstatistik (z. B. „3/5 Anfragen kostenlos lokal beantwortet").
+
+**Hosting-Ablauf:** `docker build -f Dockerfile.demo` → `docker run -p 8000:8000 --env-file .env` (gleiches `OLLAMA_BASE_URL`/`host.docker.internal`-Setup wie beim Eval-Container) → `ngrok http 8000` für die öffentliche URL. Finale URL erst kurz vor der Einreichung erzeugen (Free-Tier-URLs rotieren bei Neustart). Rechner + Ollama + Container + ngrok müssen laufen, wenn jemand den Link öffnet.
+
+**Sicherheit:** `FIREWORKS_API_KEY` nie in `Dockerfile.demo` einbacken oder committen, nur per `--env-file`/`-e`. Da der Endpunkt öffentlich erreichbar ist, im README kurz auf mögliches Kostenrisiko durch ungebremste Nutzung hinweisen (einfaches Rate-Limit ist optionaler Nice-to-have).
+
+**Zeitplan-Slot:** Mi 8.7. (siehe Abschnitt 5), ~2–3 h, explizit Nebenaufgabe — nicht auf Do 9.7. (Feature-Freeze) oder Fr 10.7. (bereits voll) legen.
 
 ---
 *Dieses Dokument ersetzt die früheren Entwürfe unter `Juli_Sprint/hackathon-amd-act2/`. Nach dem Kickoff am 6.7. werden Abschnitt 8 aufgelöst und die Erkenntnisse hier eingepflegt.*

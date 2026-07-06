@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>amd-act2-router — Demo</title>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 3rem auto; padding: 0 1rem; color: #1a1a1a; background: #ffffff; }
+  h1 { font-size: 1.3rem; }
+  p.sub { color: #555; margin-top: -0.5rem; }
+  form { display: flex; gap: 0.5rem; margin: 1.5rem 0; }
+  input[type=text] { flex: 1; padding: 0.6rem; font-size: 1rem; background: #fff; color: #1a1a1a; border: 1px solid #ccc; border-radius: 4px; }
+  button { padding: 0.6rem 1.2rem; font-size: 1rem; cursor: pointer; background: #1a1a1a; color: #fff; border: none; border-radius: 4px; }
+  #result { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; min-height: 3rem; background: #fafafa; color: #1a1a1a; }
+  .badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+  .badge.local { background: #d1f7d6; color: #146c2e; }
+  .badge.remote { background: #ffe1c2; color: #8a4b00; }
+  footer { margin-top: 1.5rem; color: #555; font-size: 0.9rem; }
+  #loading { display: none; color: #555; }
+</style>
+</head>
+<body>
+  <h1>amd-act2-router — Hybrid Token-Efficient Routing Agent</h1>
+  <p class="sub">Track 1 Demo · AMD Developer Hackathon: ACT II</p>
+
+  <form id="ask-form">
+    <input type="text" id="question" placeholder="Frage stellen..." required>
+    <button type="submit">Fragen</button>
+  </form>
+
+  <div id="loading">Frage wird beantwortet...</div>
+  <div id="result"></div>
+  <footer id="stats">Noch keine Anfragen gestellt.</footer>
+
+<script>
+const form = document.getElementById('ask-form');
+const resultEl = document.getElementById('result');
+const statsEl = document.getElementById('stats');
+const loadingEl = document.getElementById('loading');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const question = document.getElementById('question').value;
+  loadingEl.style.display = 'block';
+  resultEl.innerHTML = '';
+
+  try {
+    const res = await fetch('/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question })
+    });
+    const data = await res.json();
+
+    const badgeClass = data.source === 'local' ? 'local' : 'remote';
+    const badgeText = data.source === 'local'
+      ? 'Lokal — 0 Tokens'
+      : `Remote (Fireworks) — ${data.tokens} Tokens`;
+
+    resultEl.innerHTML = `
+      <p><strong>Frage:</strong> ${data.question}</p>
+      <p><span class="badge ${badgeClass}">${badgeText}</span></p>
+      <p><strong>Antwort:</strong> ${data.answer}</p>
+    `;
+
+    const t = data.totals;
+    statsEl.textContent =
+      `${t.local}/${t.requests} Anfragen kostenlos lokal beantwortet · ${t.total_tokens} Tokens insgesamt verbraucht`;
+  } catch (err) {
+    resultEl.innerHTML = '<p style="color:red">Fehler beim Abrufen der Antwort.</p>';
+  } finally {
+    loadingEl.style.display = 'none';
+  }
+});
+</script>
+</body>
+</html>

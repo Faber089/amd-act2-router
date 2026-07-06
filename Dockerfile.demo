@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Gleicher Cache-Trick wie im Eval-Dockerfile.
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY router/ ./router/
+COPY demo/ ./demo/
+
+# Demo-Web-App statt Batch-Eval. Das Eval-Dockerfile bleibt unabhaengig davon
+# unveraendert -- dies ist eine reine Zusatzdatei fuer die Demo-Application-URL.
+CMD ["uvicorn", "demo.app:app", "--host", "0.0.0.0", "--port", "8000"]
