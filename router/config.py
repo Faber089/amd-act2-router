@@ -29,6 +29,11 @@ ALLOWED_MODELS = [
 REMOTE_MODEL = os.environ.get("REMOTE_MODEL") or ALLOWED_MODELS[0]
 FIREWORKS_API_KEY = os.environ.get("FIREWORKS_API_KEY")
 
+# Obergrenze fuer Remote-Antworten: verhindert beliebig teure Eskalationen.
+# Hoch genug fuer Code-Aufgaben (abruptes Abschneiden wuerde Accuracy kosten),
+# niedrig genug um Laber-Antworten zu kappen.
+REMOTE_MAX_TOKENS = int(os.environ.get("REMOTE_MAX_TOKENS", "512"))
+
 # --- Routing-Verhalten ---
 # Ab welcher Selbsteinschaetzung wird der lokalen Antwort vertraut.
 CONFIDENCE_THRESHOLD = int(os.environ.get("CONFIDENCE_THRESHOLD", "70"))
@@ -36,3 +41,11 @@ CONFIDENCE_THRESHOLD = int(os.environ.get("CONFIDENCE_THRESHOLD", "70"))
 # Standard aus: in der Uebung eskalierte der Kritiker zu viel. Am Kickoff-Tag
 # mit den echten Aufgaben neu bewerten.
 USE_CRITIQUE = os.environ.get("USE_CRITIQUE", "0") == "1"
+# Selbst-Konsistenz-Check: kurze, vertrauenswuerdige lokale Antworten einmal
+# gegenpruefen (zweiter lokaler Lauf, kostenlos). Widerspruch -> eskalieren.
+# Fanggt "selbstbewusst falsch" ab, was die Confidence-Zahl allein nicht kann.
+USE_SELFCHECK = os.environ.get("USE_SELFCHECK", "1") == "1"
+# Nur kurze Antworten gegenpruefen (Zahlen, Namen, Ja/Nein) — lange Antworten
+# (Code, Zusammenfassungen) sind nie zeichengleich, dort wuerde der Check
+# immer faelschlich eskalieren.
+SELFCHECK_MAX_ANSWER_LEN = int(os.environ.get("SELFCHECK_MAX_ANSWER_LEN", "80"))

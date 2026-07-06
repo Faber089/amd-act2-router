@@ -14,3 +14,9 @@
 {"id": 14, "category": "logic_puzzle", "question": "If all Zorbs are Flerms, and all Flerms are Wibbles, are all Zorbs Wibbles? Answer with only yes or no.", "expected": "yes"}
 {"id": 15, "category": "code_generation", "question": "Write a Python function called is_palindrome that takes a string and returns True if it is a palindrome, False otherwise.", "expected": "def is_palindrome"}
 {"id": 16, "category": "code_generation", "question": "Write a Python function called factorial that computes the factorial of a non-negative integer n.", "expected": "def factorial"}
+{"id": 17, "category": "math_reasoning", "question": "What is 347 times 289? Answer with only the number.", "expected": "100283"}
+{"id": 18, "category": "factual_knowledge", "question": "Who was the Prime Minister of Bhutan in 2019? Answer with the name only.", "expected": "lotay tshering"}
+{"id": 19, "category": "math_reasoning", "question": "A population of 8000 grows by 15% per year. What is the population after 2 years? Answer with only the number.", "expected": "10580"}
+{"id": 20, "category": "logic_puzzle", "question": "Ann says 'Ben is a liar.' Ben says 'Cal is a liar.' Cal says 'Ann and Ben are both liars.' Exactly determine who tells the truth. Answer with only the name.", "expected": "ben"}
+{"id": 21, "category": "code_debugging", "question": "Find the bug in this Python function and provide the corrected version:\ndef sum_first_n(n):\n    total = 0\n    for i in range(1, n):\n        total += i\n    return total", "expected": "n + 1"}
+{"id": 22, "category": "factual_knowledge", "question": "Which chemical element has atomic number 74? Answer with the name only.", "expected": "tungsten"}
