@@ -30,7 +30,12 @@ REMOTE_BASE_URL = os.environ.get(
 ALLOWED_MODELS = [
     m.strip()
     for m in os.environ.get(
-        "ALLOWED_MODELS", "accounts/fireworks/models/gemma-4-26b-a4b-it"
+        "ALLOWED_MODELS",
+        "accounts/fireworks/models/kimi-k2p7-code,"
+        "accounts/fireworks/models/minimax-m3,"
+        "accounts/fireworks/models/gemma-4-26b-a4b-it,"
+        "accounts/fireworks/models/gemma-4-31b-it,"
+        "accounts/fireworks/models/gemma-4-31b-it-nvfp4",
     ).split(",")
     if m.strip()
 ]
