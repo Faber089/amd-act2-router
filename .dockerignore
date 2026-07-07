@@ -1,0 +1,11 @@
+# Participant Guide: niemals .env/Keys ins Image bundeln.
+.env
+.env.*
+.git
+.gitignore
+__pycache__
+**/__pycache__
+input/
+output/
+eval/results/
+*.md

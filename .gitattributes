@@ -1,2 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Shell-Skripte laufen im Linux-Container — CRLF wuerde den Shebang zerstoeren.
+*.sh text eol=lf
