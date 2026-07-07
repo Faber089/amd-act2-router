@@ -1,6 +1,6 @@
 # MASTERPLAN — AMD Developer Hackathon: ACT II (Solo-Teilnahme Sebastian)
 
-> **Zweck dieses Dokuments:** Vollständiges, eigenständiges Briefing. Wer dieses Dokument liest (Mensch oder KI-Assistent), hat ALLEN nötigen Kontext, um Sebastian bei diesem Hackathon zu unterstützen — ohne Rückfragen zur Ausgangslage. Stand: 5. Juli 2026.
+> **Zweck dieses Dokuments:** Vollständiges, eigenständiges Briefing. Wer dieses Dokument liest (Mensch oder KI-Assistent), hat ALLEN nötigen Kontext, um Sebastian bei diesem Hackathon zu unterstützen — ohne Rückfragen zur Ausgangslage. **Stand: 7. Juli 2026, abends.**
 
 ---
 
@@ -113,33 +113,36 @@
 ```
 amd-act2-router/
 ├── router/
-│   ├── local_client.py    # spricht lokales Modell (OpenAI-kompatible API, Tokens = 0)
-│   ├── remote_client.py   # spricht Fireworks AI (OpenAI-kompatibel, Tokens zählen!)
-│   ├── judge.py           # Selbst-Check: ist die lokale Antwort gut genug?
-│   └── main.py            # Cascade-Logik
+│   ├── config.py           # Zentrale Konfiguration, alles per Env-Var (inkl. .env fuer lokale Entwicklung)
+│   ├── local_client.py     # spricht lokales Modell (OpenAI-kompatible API, Tokens = 0)
+│   ├── remote_client.py    # spricht Fireworks AI (OpenAI-kompatibel, Tokens zählen! max_tokens gedeckelt)
+│   ├── judge.py            # Confidence-Parsing, Kritiker, Code-Syntax-Check, semantic_judge (nur Eval)
+│   └── main.py             # Cascade-Logik: route()
 ├── eval/
-│   ├── tasks.jsonl        # Übungsaufgaben mit Soll-Lösungen (eigenes Format)
-│   └── run_eval.py        # misst Accuracy + Remote-Tokens pro Lauf
-├── submission/             # NEU (noch zu bauen) — der eigentliche Wettbewerbs-Entrypoint
-│   └── run.py              # liest /input/tasks.json, ruft route() pro Task auf, schreibt /output/results.json, exit 0/1
-├── demo/                   # Bonus/Video-Material, NICHT das gewertete Artefakt
-│   ├── app.py              # FastAPI-Demo, wrappt route() für die Presentation
+│   ├── tasks.jsonl         # 22 Testaufgaben, alle 8 Kategorien, Englisch
+│   └── run_eval.py         # misst Accuracy (2 Methoden) + Tokens, Kalibrierungstabelle
+├── submission/
+│   └── run.py              # ✅ FERTIG — liest /input/tasks.json, ruft route() pro Task, schreibt /output/results.json
+├── demo/                   # optionales Video-Hilfsmittel, KEINE Submission-Pflicht
+│   ├── app.py               # FastAPI-Demo, wrappt route()
 │   └── static/index.html
-├── Dockerfile              # Wettbewerbs-Image: submission/run.py als Entrypoint (noch anzupassen)
+├── Dockerfile              # ✅ Wettbewerbs-Image, submission/run.py als Entrypoint, linux/amd64 verifiziert
 ├── Dockerfile.demo         # separates Image nur für die Video-Demo
-├── README.md               # Setup, Architektur, Eval-Ergebnisse
+├── README.md               # Setup, Architektur, Build-/Run-/Push-Befehle
 └── LICENSE                 # MIT
 ```
 
-**Wichtiger Architektur-Shift ggü. der ursprünglichen Annahme:** Das eigentliche Wettbewerbs-Docker-Image ist ein **Batch-Container** (liest eine Task-Datei, schreibt eine Ergebnis-Datei, beendet sich) — kein Web-Server. Die Demo-App (FastAPI/ngrok) bleibt nur fürs Presentation-Video sinnvoll, ist aber nicht das, was der Judging-Harness tatsächlich aufruft.
+**Architektur-Kernfakt:** Das Wettbewerbs-Docker-Image ist ein **Batch-Container** (liest eine Task-Datei, schreibt eine Ergebnis-Datei, beendet sich) — kein Web-Server. Die Demo-App bleibt nur fürs Presentation-Video sinnvoll.
 
-**Cascade-Logik (Kernidee):**
-1. Aufgabe rein → **immer zuerst lokales Modell** (kostet 0)
-2. **Judge** prüft die lokale Antwort (Selbstbefragung / Format-Check / Plausibilität)
-3. Judge unsicher → Eskalation an Fireworks mit **maximal kurzem Prompt** und begrenztem `max_tokens`
-4. Tokens werden geloggt; Eval-Skript liefert nach jedem Lauf: Accuracy % + Remote-Tokens gesamt
+**Cascade-Logik (aktueller Stand, alle Schritte lokal = 0 Tokens bis auf den letzten):**
+1. Aufgabe rein → **immer zuerst lokales Modell** (`gemma2:2b`, inkl. Warm-up gegen Cold-Start)
+2. **Confidence-Check:** Modell liefert ANSWER + eigene CONFIDENCE-Einschätzung; unter Schwelle (70) → eskalieren
+3. **Selbst-Konsistenz-Check** (nur Antworten ≤80 Zeichen): Frage nochmal lokal stellen, bei Widerspruch → eskalieren
+4. **Code-Syntax-Check** (nur bei Code-Antworten): `ast.parse()`, bei Syntaxfehler → eskalieren
+5. Eskalation → Fireworks (`kimi-k2p7-code`, tokeneffizientestes verfügbares Modell), Kürze-Prompt + `max_tokens=512`
+6. Bei Remote-Fehler: Fallback auf die unsichere lokale Antwort statt leerem String
 
-**Geplante Iterationen:** v1 = Cascade wie oben → v2 = zusätzlich Schwierigkeits-Klassifikation VOR der ersten Antwort (Heuristiken oder Mini-Modell), um lokale Fehlversuche bei offensichtlich schweren Aufgaben zu sparen. Eiserne Regel: **Jede Änderung wird gegen die Eval gemessen; nur behalten, was die Zahlen verbessert.**
+**Eiserne Regel:** Jede Änderung wird gegen `eval/run_eval.py` gemessen; nur behalten, was die Zahlen verbessert.
 
 **Technischer Schlüssel-Fakt:** Ollama UND Fireworks bieten OpenAI-kompatible APIs → derselbe Python-Code (`openai`-Paket) spricht beide, nur `base_url`/`api_key` unterscheiden sich.
 
@@ -151,10 +154,10 @@ amd-act2-router/
 |---|---|---|---|
 | **So 5.7.** | Vorbereitung | 0.1 Accounts checken (lablab-Dashboard, Fireworks-API-Key, beide Discords) · 0.2 Umgebung (Docker-hello-world, 2 Ollama-Modelle in 2 Größen, GitHub-Repo) · 0.3 Docker-Crashkurs 90 min · 0.4 LLM-API-Crashkurs 90 min (gleicher Code lokal + remote, Tokens auslesen) · 0.5 **Kernübung: kompletten Übungs-Router bauen** (4–6 h) · 0.6 abends 30 min DeepLearning.AI | `docker run` lässt Übungs-Eval durchlaufen und liefert Accuracy + Tokens |
 | **Mo 6.7.** | Kickoff | Vormittags Kickoff verfolgen, `kickoff-notizen.md` anlegen: Aufgaben? erlaubte Modelle? Specs der Scoring-Umgebung? Accuracy-Schwelle? Submit-Prozess? · Hackathon-Credits einlösen · AMD-Cloud-Zugang einrichten · Nachmittags **2 Baselines**: alles-lokal (Tokens 0, Accuracy?) und alles-remote (Accuracy-Maximum, Token-Maximum) | Beide Baseline-Zahlen dokumentiert |
-| **Di 7.7.** | Iteration | **`submission/run.py` bauen** (liest `/input/tasks.json`, ruft `route()` auf, schreibt `/output/results.json`) · `config.py` auf `ALLOWED_MODELS` umstellen (kein hartkodierter Modellname mehr) · Prompts auf Englisch umstellen · `eval/tasks.jsonl` um Beispiele aus allen 8 Kategorien erweitern | `submission/run.py` läuft lokal gegen Beispiel-`tasks.json`, Output ist valides JSON |
-| **Mi 8.7.** | Iteration | Router v1 (Cascade) auf die echten 8 Kategorien tunen: Judge-Varianten, Eskalations-Schwelle, Prompt-Kürzung, `max_tokens` · Dockerfile fürs Wettbewerbs-Image anpassen (`--platform linux/amd64`) · Demo-App (Abschnitt 11) nur noch optional, falls Zeit übrig | Messbar besser als Di, Docker-Image baut mit amd64-Manifest |
-| **Do 9.7.** | Iteration | v2 (Vorab-Klassifikation) testen · **kurzer, bezahlter Gemma-4-Effizienztest** (eine der 3 Varianten kurz deployen, Minimal-Shape, gegen `kimi-k2p7-code` auf allen 22 Eval-Aufgaben vergleichen, danach sofort undeployen/auf 0 skalieren lassen) — nur wechseln, wenn Gemma nachweisbar tokeneffizienter UND genauso korrekt ist · Container-Registry einrichten + ersten Push testen (ghcr.io oder Docker Hub) · **abends Feature-Freeze**, Git-Tag `v1.0` | Beste Version eingefroren, Image erfolgreich in Registry gepusht |
-| **Fr 10.7.** | Submission-Paket | Container von frischem Klon durchtesten (10-Min-/30s-/60s-Limits im Blick) · README (Architektur + Ergebnistabelle) · Presentation-Video **max. 5 min, MP4, max. 300 MB** (OBS, danach Dateigröße prüfen!) · finalen Image-Push in die Registry | Alles Material fertig, Video ≤ 300 MB bestätigt, Image öffentlich pullbar |
+| **Di 7.7.** ✅ | Iteration | **Erledigt, deutlich mehr als geplant:** `submission/run.py` gebaut+getestet · `ALLOWED_MODELS`-Umstellung · Prompts auf Englisch · `eval/tasks.jsonl` auf 22 Aufgaben (8 Kategorien) erweitert · Regex-Bug + Cold-Start-Bug behoben · Docker-Image inkl. `linux/amd64`-Verifikation · echter Fireworks-Key getestet, Modellvergleich (`kimi-k2p7-code` gewinnt) · Selbst-Konsistenz-Check + Code-Syntax-Check gebaut · Eval-Accuracy-Messung verbessert (semantic_judge) | Alles oben verifiziert und committet |
+| **Mi 8.7.** | Iteration/Puffer | Da Di 7.7. schon den Großteil von Mi+Do vorgezogen hat: Rest-Feinschliff Router (falls noch Ideen), **README fertig polieren**, ggf. weitere Eval-Aufgaben für Summarization/NER | README vorzeigbar, Router stabil |
+| **Do 9.7.** | Submission-Vorbereitung | **Container-Registry einrichten + Push** (ghcr.io, aktuell bewusst zurückgestellt) · optionaler kurzer Gemma-4-Effizienztest, falls Zeit/Budget übrig · **abends Feature-Freeze**, Git-Tag `v1.0` | Image öffentlich in Registry, beste Version eingefroren |
+| **Fr 10.7.** | Submission-Paket | Container von frischem Klon durchtesten (10-Min-/30s-/60s-Limits im Blick) · Presentation-Video **max. 5 min, MP4, max. 300 MB** (OBS, danach Dateigröße prüfen!) · finaler Image-Push | Alles Material fertig, Video ≤ 300 MB bestätigt, Image öffentlich pullbar |
 | **Sa 11.7.** | Abgabe | Alle lablab.ai-Felder ausfüllen, **spätestens 14:00 deutscher Zeit** submitten (Deadline 17:00), Bestätigung screenshotten | Submission bestätigt |
 
 ---
@@ -192,67 +195,41 @@ Weitere Arbeitsprinzipien:
 
 ---
 
-## 8. OFFENE PUNKTE (werden am Kickoff geklärt → hier nachtragen!)
+## 8. AKTUELLER STAND & OFFENE PUNKTE (Stand 7.7. abends)
 
-**KORREKTUR 6.7. (per offizieller Kickoff-Mail von lablab.ai, heute erhalten):** Die frühere Annahme „Kickoff-Inhalte kommen erst morgen (7.7.)" war **falsch** — es gab schlicht noch keine Veröffentlichung, weil der Kickoff-Stream erst **heute Abend, 18:00 CET** läuft (danach 19:00 CET Discord-Q&A auf lablab.ai-Discord). **Phase 1 (Kickoff) findet also wie ursprünglich geplant HEUTE (6.7.) statt, keine Tagesverschiebung.** Baselines (Schritt 1.2) und `kickoff-notizen.md` entsprechend heute Abend/danach angehen, nicht erst morgen.
+### 8.1 Fertig & verifiziert
 
-Zusätzlich aus der Kickoff-Mail bestätigt/neu:
-- Prize Pool offiziell **$20.000+** (Tabelle in Abschnitt 2 unten korrigiert von $21.000)
-- Gemma-Bonus heißt **„Best Use of Gemma 4"**, $6.000-Pool, **trackübergreifend** (nicht $1.000 exklusiv für Track 1 — Abschnitt 3 korrigiert)
-- Neue Bonus-Challenge „Natively AI Challenge" (Zugang zu Native.builder) — für Track 1 nicht nötig, kein Handlungsbedarf
-- Workshop „Build Your First Lightweight App with Native.Builder": **Di 7.7., 18:00 CET**, lablab.ai-Discord — optional, betrifft Track 1 nicht direkt
-- **Offene Frage für den Discord-Q&A heute 19:00 CET:** Braucht Track 1 wirklich eine live erreichbare Demo-URL, oder reicht ein einfacher Link (Repo/Video)? Antwort hier nachtragen. Der Bau der Demo-App (Abschnitt 11) läuft unabhängig davon weiter — lohnt sich so oder so fürs Demo-Video —, nur der Hosting-Aufwand (ngrok, siehe Abschnitt 11) könnte sich dadurch erübrigen.
-- **Nach dem Kickoff prüfen — TOON-Format für Tokensparen:** Falls die echten Aufgaben strukturierte/tabellarische Eingabedaten enthalten (Listen, mehrere gleich aufgebaute Datensätze), die an Fireworks eskaliert werden: TOON (Token-Oriented Object Notation) statt JSON prüfen — spart laut aktuellen Benchmarks 30–60 % Tokens, teils sogar mit besserer Genauigkeit ([toon-format/toon](https://github.com/toon-format/toon)). Nur einbauen, wenn Eval-Vergleich (vorher/nachher) Tokens senkt UND Accuracy nicht verschlechtert. Bei reinen Fließtext-Fragen (wie aktuell) irrelevant.
+- ✅ **Cascade-Router komplett funktionsfähig:** lokal (`gemma2:2b`) → Confidence-Check → Selbst-Konsistenz-Check → Code-Syntax-Check → Eskalation an `kimi-k2p7-code` bei Bedarf. Alle Schritte bis auf die Eskalation selbst kosten 0 Tokens.
+- ✅ **`submission/run.py`:** liest `/input/tasks.json`, schreibt `/output/results.json`, mit Zeitbudget-Schutz (9-Min-Grenze, Puffer vor dem 10-Min-Hardlimit) und Ollama-Warm-up (behebt realen Cold-Start-Bug: erster Call brauchte sonst >30s).
+- ✅ **`linux/amd64`-Pflicht verifiziert:** `docker buildx build --platform linux/amd64 --load .` baut fehlerfrei, `docker inspect` bestätigt `Architecture: amd64` + `Os: linux`. Funktionstest im Image erfolgreich (Exit 0, korrekte Antwort). Die härteste, leicht übersehbare Anforderung ist bestätigt erfüllt, nicht nur angenommen.
+- ✅ **Modellwahl datenbasiert getroffen:** Von den 5 offiziell erlaubten Modellen (`minimax-m3`, `kimi-k2p7-code`, `gemma-4-31b-it`, `gemma-4-26b-a4b-it`, `gemma-4-31b-it-nvfp4`) sind aktuell nur die ersten 2 auf Sebastians Fireworks-Account freigeschaltet (Gemma-4-Varianten brauchen kostenpflichtiges Deployment, $28-40/h — bewusst nicht verfolgt, siehe Abschnitt 3). Direkter Vergleich auf allen 22 Eval-Aufgaben: `kimi-k2p7-code` 22/22 korrekt bei 4189 Tokens gesamt, `minimax-m3` 22/22 korrekt bei 5239 Tokens — **`kimi-k2p7-code` ~20 % effizienter, jetzt als Default gesetzt.**
+- ✅ **Eval-Messung verlässlicher gemacht:** grober Substring-Check ergänzt um `semantic_judge()` (lokales Modell als informeller Zweit-Gutachter, 0 Tokens) — beide Methoden stimmen aktuell auf allen 22 Aufgaben überein (90,9 %). Kalibrierungstabelle zeigt Trefferquote pro Confidence-Bereich.
+- ✅ **GitHub-Repo lebendig:** https://github.com/Faber089/amd-act2-router (aktuell privat). Lokaler Ordner `C:\Users\iq\Documents\GitHub\amd-act2-router` ist die aktive, GitHub-Desktop-verbundene Kopie — **dort arbeiten**, nicht in der älteren Kopie unter `D:\Obsidian_Gedächtnis\AMD hackathon act2\amd-act2-router\`. CLI-Push schlägt fehl (falscher lokaler Git-Account) — Push nur über GitHub Desktop, und **aktuell bewusst noch nicht pushen** (Sebastians Anweisung, Stand 7.7.).
+- ✅ `.env`-Unterstützung (`python-dotenv`) für lokale Entwicklung eingebaut, `.gitignore` schützt sie vor versehentlichem Commit.
 
-**Stand Ende 6.7. — Grundgerüst fertig & getestet (Ordner `amd-act2-router/`):**
-- ✅ Cascade-Router läuft (lokal zuerst → bei Unsicherheit Fireworks), komplett über Umgebungsvariablen konfigurierbar (`router/config.py`)
-- ✅ Eval-Harness misst Genauigkeit + Tokenverbrauch (`eval/run_eval.py`, 13 Übungsaufgaben)
-- ✅ Containerized — Docker-Image baut, Container erreicht Host-Ollama via `host.docker.internal` (verifiziert)
-- ✅ README, MIT-LICENSE, .gitignore (schützt vor Key-Leak), requirements.txt
-- ✅ **GitHub-Push erledigt:** Repo live unter https://github.com/Faber089/amd-act2-router (aktuell **privat** — vor Submission auf öffentlich stellen). Account-Diskrepanz gelöst: Sebastians echter GitHub-Account ist **Faber089**; der lokal via `git`/`gh` angemeldete Account (Sebastian0890) hat keinen Zugriff auf Faber089-Repos → Pushes über die Kommandozeile schlagen deshalb fehl. **Für alle künftigen Commits: Push über GitHub Desktop**, nicht über CLI.
-- Projektordner lokal auch gespiegelt unter `C:\Users\iq\Documents\GitHub\amd-act2-router` (das ist die per GitHub Desktop verbundene Kopie).
-- 🔧 **Modellwahl aktuell:** lokal `gemma2:2b` (schnell), remote-Default jetzt `gemma-4-26b-a4b-it` (aus `ALLOWED_MODELS`, ersetzt den erfundenen `gpt-oss-120b`). Kritiker (`USE_CRITIQUE`) standardmäßig AUS (eskalierte in der Übung zu viel).
-- ✅ **Docker-Wettbewerbs-Image End-zu-Ende getestet (6.7. abends):** `docker build` + `docker run` mit echten `/input`/`/output`-Mounts, 3 Testaufgaben (Faktenwissen, Code-Generierung, Mathe) alle korrekt lokal beantwortet, Exit-Code 0, valides JSON. Windows/Git-Bash-Pfad-Stolperstein gefunden + im README dokumentiert (`MSYS_NO_PATHCONV=1` + native Windows-Pfade nötig, `$(pwd)` funktioniert nicht zuverlässig).
-- ✅ **Regex-Bug behoben:** `ANSWER`-Extraktion in `judge.py` brach am ersten Zeilenumbruch ab — mehrzeiliger Code wurde dadurch fast komplett abgeschnitten. Nach dem Fix + Prompt-Klarstellung für Code-Aufgaben: **Eval-Accuracy 100 % (16/16)** auf den eigenen Testaufgaben, 0 Tokens.
-- ⚠️ **Bekannte Lücke, jetzt mit echtem Key bestätigt (6.7. spät):** Mit Sebastians echtem Fireworks-Key getestet (`.env`, `config.py` lädt sie jetzt automatisch via `python-dotenv`) — **keines der 5 Hackathon-Modelle ist auf dem Account sichtbar/deployt**. `client.models.list()` zeigt nur 7 generische Katalog-Modelle (`gpt-oss-120b`, `glm-5p1/p2`, `deepseek-v4-pro`, `kimi-k2p6/p5`, `flux-1-schnell-fp8`) — keins davon `gemma-4-*`, `minimax-m3` oder `kimi-k2p7-code`.
-- ✅ **Exakte Modell-ID bestätigt** (fireworks.ai/models, öffentliche Katalogseite): `accounts/fireworks/models/gemma-4-26b-a4b-it` (mit Prefix — in `config.py` jetzt korrekt hinterlegt).
-- ✅ **7.7. — 2 von 5 Modellen jetzt freigeschaltet:** `minimax-m3` und `kimi-k2p7-code` funktionieren live (echt getestet). Die 3 Gemma-4-Varianten weiterhin 404 — Freischaltung läuft also gestaffelt, kein Problem im Code.
-- ✅ **Vollständiger Modellvergleich (alle 22 Eval-Aufgaben, direkt remote ohne lokales Routing):** `minimax-m3` 22/22 korrekt, 5239 Tokens gesamt (Ø 238,1/Aufgabe) · `kimi-k2p7-code` 22/22 korrekt, 4189 Tokens gesamt (Ø 190,4/Aufgabe) — **`kimi-k2p7-code` ~20 % tokeneffizienter bei gleicher Korrektheit.** Statistisch solide (22 Datenpunkte, nicht nur Stichprobe) → als alleiniges bevorzugtes Remote-Modell in `config.py` hinterlegt.
-- ✅ **Lücke bei langen Antworten geschlossen (Code Debugging/Generation):** Selbst-Konsistenz-Check greift wegen der 80-Zeichen-Grenze nicht bei Code-Antworten. Neuer objektiver Check in `judge.py`: `ast.parse()` (kein `exec`, sicher) prüft Syntax-Gültigkeit — syntaktisch kaputter Code eskaliert jetzt zwingend, unabhängig von der Confidence-Zahl. Deckt 2 der 8 Kategorien objektiv ab. **Weiterhin offen (bewusst nicht gebaut):** Summarization und NER haben keine vergleichbar einfache objektive Prüfung — bleiben auf Confidence allein angewiesen.
-- ✅ **Code-Review (7.7.):** Eigene Eval-Accuracy-Messung war eine grobe Substring-Prüfung, NICHT der echte Wettbewerbs-Mechanismus (LLM-Judge, bewertet Bedeutung statt exaktem Text) — real erlebt: eine inhaltlich korrekte Zusammenfassung scheiterte am Substring-Check, nur weil das exakt erwartete Wort fehlte. Behoben: `eval/tasks.jsonl` erlaubt jetzt Listen akzeptierter Stichwörter (any-match) für freie Kategorien; neue `semantic_judge()`-Funktion (lokales Modell als informeller Vergleichswert, 0 Tokens) läuft jetzt zusätzlich in `run_eval.py` und markiert Uneinigkeiten. Nach dem Fix: beide Methoden stimmen auf allen 22 Aufgaben überein (90,9 %) — Messung ist jetzt verlässlicher, aber weiterhin nur eine Annäherung, nicht der echte Judge. Nebenbei: `critique()`-Default (hartcodiertes `"gemma2:2b"` statt `config.LOCAL_MODEL`) korrigiert.
-- ✅ **Voller Eskalationspfad Ende-zu-Ende mit echten Tokens verifiziert:** Eval-Lauf mit funktionierendem Remote-Modell: **86,4 % Accuracy (19/22), 1155 Gesamt-Tokens.** Alle 6 schweren Testaufgaben eskalieren dank Selbst-Konsistenz-Check korrekt (Confidence + Widerspruchsprüfung fangen die meisten "selbstbewusst falschen" lokalen Antworten ab); 2 der 22 bleiben trotzdem falsch, weil das lokale Modell bei genau diesen zwei Fragen bei BEIDEN Selbst-Check-Durchläufen dieselbe falsche Antwort gibt (Konsistenz-Check kann das strukturell nicht erkennen — bekannte Grenze der Methode, kein Bug).
-- 📎 **Alle 5 Modelle im öffentlichen Fireworks-Katalog bestätigt existent** (nicht nur Gerücht aus Discord): Gemma 4 31B IT, Gemma 4 26B A4B IT, Gemma 4 31B IT NVFP4 (alle 262144 Context), Minimax M3 ($0.3/$1.2 pro M Token, 512000 Context), Kimi K2.7 Code ($0.95/$4 pro M Token, 262144 Context). Gemma 4 26B A4B IT hat laut Katalogseite ein **"configurable thinking mode"** — im Blick behalten, ob sich Reasoning-Tokens abschalten lassen (gleiches Thema wie der `gpt-oss-120b`-Fund oben).
-- ⚠️ **Neuer Fund beim echten Test:** Ein voller Eskalations-Roundtrip mit `gpt-oss-120b` (dem einzigen aktuell erreichbaren größeren Modell) funktionierte technisch einwandfrei (Antwort "Paris" korrekt) — aber **45 Completion-Tokens für eine Ein-Wort-Antwort**, weil `gpt-oss-120b` ein Reasoning-Modell mit unsichtbaren Denk-Tokens ist, die trotzdem gezählt werden. Falls eines der echten erlaubten Modelle ebenfalls ein Reasoning-Modell ist: unbedingt prüfen, ob die API einen Parameter zum Abschalten/Reduzieren des Reasoning-Aufwands bietet (oft `reasoning_effort` o. Ä.) — das wäre ein sehr großer Tokeneffizienz-Hebel, den reine Prompt-Kürze allein nicht löst.
+### 8.2 Bewusste Entscheidungen (nicht vergessen, sondern absichtlich so)
 
-**✅ AUFGELÖST (Participant Guide PDF, 6.7. abends erhalten):** Aufgaben-Kategorien, erlaubte Modelle, Docker-I/O-Vertrag, Umgebungsvariablen, Laufzeit-/Größen-Limits und der zweistufige Scoring-Mechanismus sind jetzt alle in Abschnitt 3 dokumentiert. Das PDF ist die vollständigste bisher erhaltene Quelle — deutlich detaillierter als Stream-Folien oder Kickoff-Mail.
+- **Gemma-4-Bonus ("Best Use of Gemma 4", $6.000-Pool) nicht verfolgt:** Kostenrisiko ($28-40/h dediziertes Deployment) rechtfertigt den kompetitiven, unsicheren Bonus nicht. Optionaler kurzer Effizienztest bleibt als Kür vorgemerkt, kurz vor Abgabe, falls Zeit/Budget übrig.
+- **Demo-App (`demo/`) ist keine Submission-Pflicht mehr**, bleibt aber als Video-Hilfsmittel bestehen — kein weiterer Hosting-/ngrok-Aufwand nötig.
+- **TOON-Format** (Token-Oriented Object Notation) wurde geprüft, aber verworfen — unsere Aufgaben sind reiner Fließtext, keine strukturierten/tabellarischen Daten, die TOON komprimieren könnte.
 
-**✅ Pflicht-Anforderung verifiziert (7.7.):** `docker buildx build --platform linux/amd64 --load .` baut fehlerfrei, `docker inspect` bestätigt `"Architecture": "amd64"` + `"Os": "linux"` — genau der geforderte Manifest-Typ. Funktionstest im amd64-Image erfolgreich (Aufgabe korrekt gelöst, Exit 0). Damit ist die härteste, leicht übersehbare Anforderung ("sonst Pull-Fehler = 0 Punkte") bestätigt erfüllt, nicht nur angenommen.
+### 8.3 Noch offen
 
-**Discord-Q&A abgeschlossen (7.7.) — laut Sebastian keine offenen Rückfragen mehr.** Verbleibend nur noch, was ohnehin nicht extern klärbar war:
-- [ ] Exakte Zahl der Accuracy-Gate-Schwelle (PDF nennt nur den Mechanismus: LLM-Judge, keine konkrete Prozentzahl — auch nach dem Q&A nicht genannt)
-- [ ] Genaue Anzahl/Beispiele der Test-Prompts pro Kategorie (PDF sagt bewusst: "Exact evaluation inputs are intentionally omitted" — müssen selbst Testfragen pro der 8 Kategorien bauen)
-- [ ] Container-Registry-Wahl: GitHub Container Registry (ghcr.io, nutzt denselben Faber089-GitHub-Account) vs. Docker Hub — noch zu entscheiden und einzurichten
-- [ ] Details AMD-Cloud-GPU-Zugang + zusätzliche Hackathon-Credits (falls für Fine-Tuning/Entwicklung relevant — für reines Fireworks-Routing evtl. nicht nötig)
+- [ ] **Container-Registry-Push** (ghcr.io empfohlen, nutzt den Faber089-GitHub-Account) — technisch vorbereitet (README dokumentiert den Befehl), aber noch nicht ausgeführt.
+- [ ] **Exakte Accuracy-Gate-Schwelle unbekannt** — PDF nennt nur den Mechanismus (LLM-Judge), keine Zahl. Nach dem abgeschlossenen Discord-Q&A (7.7., laut Sebastian keine offenen Rückfragen mehr) auch extern nicht klärbar — akzeptierte Unsicherheit.
+- [ ] **Summarization & NER ohne objektiven Check** — anders als Code (Syntax-Check) oder kurze Antworten (Selbst-Konsistenz) gibt es hier keine einfache automatische Prüfung; verlassen sich auf Confidence + `semantic_judge()`.
+- [ ] **Presentation-Video** (≤5 Min, MP4, ≤300 MB) noch nicht erstellt.
+- [ ] **README-Feinschliff** für die finale Abgabe.
+- [ ] **Reasoning-Token-Risiko:** `gpt-oss-120b` (nicht Teil der erlaubten Modelle, nur zum Testen genutzt) brauchte 45 Tokens für eine Ein-Wort-Antwort wegen unsichtbarer Denk-Tokens. `kimi-k2p7-code` zeigte dieses Verhalten in den Tests NICHT (deutlich günstiger), aber falls sich das Verhalten je ändert: prüfen ob ein `reasoning_effort`-Parameter o. Ä. existiert.
+- [ ] AMD-Cloud-GPU-Zugang / zusätzliche Hackathon-Credits — vermutlich nicht nötig, da alles über Fireworks läuft, nicht über eigene GPU-Instanzen.
 
-**✅ Code-Änderungen umgesetzt (6.7. abends) und lokal verifiziert (ohne Docker, Daemon lief nicht — Ollama war verfügbar):**
-- ✅ **`submission/run.py` (neu):** liest `/input/tasks.json`, ruft `router.main.route()` pro Task auf, schreibt `/output/results.json`, exit 0/1. Enthält zusätzlich einen Warm-up-Call vor der Aufgaben-Schleife (behebt einen echten Cold-Start-Bug: erster Ollama-Call brauchte >30s und schlug fehl, bevor das Modell im Speicher war — mit Warm-up läuft's in ~2s)
-- ✅ **`router/config.py`:** `ALLOWED_MODELS` wird jetzt aus der Umgebungsvariable gelesen (Komma-Liste), `REMOTE_MODEL` fällt auf das erste erlaubte Modell zurück statt auf den erfundenen `gpt-oss-120b`-Default
-- ✅ **Prompts auf Englisch umgestellt** (`router/local_client.py`: ANSWER/CONFIDENCE statt ANTWORT/VERTRAUEN; `router/judge.py`: VERDICT/CORRECT/INCORRECT statt URTEIL/KORREKT/FEHLERHAFT)
-- ✅ **Dockerfile angepasst:** `submission/run.py` ist jetzt der Standard-CMD; README dokumentiert `--platform linux/amd64`-Build + Registry-Push (ghcr.io vorgeschlagen, nutzt Faber089-Account)
-- ✅ **`eval/tasks.jsonl` erweitert:** 16 Aufgaben, 2 pro Kategorie, komplett auf Englisch. Eval-Lauf: **68,8 % Accuracy (11/16), 0 Remote-Tokens** (alles lokal beantwortet, nie eskaliert)
+### 8.4 Wichtige technische Lektionen (falls ähnliche Bugs wieder auftauchen)
 
-**🐛 Konkreter Befund aus dem Eval-Lauf, noch zu beheben (Iterationstag):** Bei **Code Debugging** und **Code Generation** (4 von 16 Aufgaben, alle "FALSCH" im groben Substring-Check) beschreibt `gemma2:2b` den Fehler/die Funktion nur in Prosa, statt den tatsächlichen korrigierten/neuen Code zu liefern — das aktuelle generische Prompt-Format ("ANSWER: ...") lädt nicht klar genug dazu ein, echten Code zurückzugeben. Für diese 2 Kategorien braucht der Prompt vermutlich eine explizite Zusatzanweisung ("return the actual corrected code, not just an explanation"). Noch nicht behoben — für morgen (Iterationstag) vorgemerkt.
-
-**Optimale lokale Modellgröße (aus der Übung, weiterhin gültig):** 0,5B (qwen2.5) zu schwach — hält Format nicht ein, inhaltlich falsch. 6,6B (qwen3.5) inhaltlich zuverlässig, aber auf CPU zu langsam (~30 Min für 13 Testfragen — würde das 10-Minuten-Gesamtlimit sprengen). 2B (gemma2:2b) ist schnell (~2s/Antwort, passt gut ins 30s-Pro-Task-/10-Min-Gesamtlimit) UND hält das Format ein, ABER: liefert bei schweren Fragen selbstbewusst falsche Antworten und eskaliert nicht — bleibt der Kern-Zielkonflikt beim Judge-Design.
-
-**🔑 Kern-Erkenntnis aus der Übung (5./6.7.):** Reines Selbst-Vertrauen des lokalen Modells als Judge ist nicht robust genug — ein Modell kann überzeugt falsch liegen. Für die finale Lösung braucht es vermutlich eine zusätzliche Absicherung, z. B.: Aufgaben-Typ-Erkennung vor der Antwort (z. B. Rechenaufgaben mit großen Zahlen grundsätzlich eskalieren), Selbst-Konsistenz-Check (Frage zweimal anders formuliert stellen, bei Widerspruch eskalieren), oder härtere Heuristiken statt nur einer Vertrauens-Zahl vom Modell selbst.
-
-**✅ Umgesetzt (6.7. spät, nach Recherche zu tokeneffizientem Routing — Quellen: UCCI-Paper arxiv 2605.18796 zu kalibrierten Cascade-Schwellen, Concise-CoT arxiv 2401.05618):**
-- **Selbst-Konsistenz-Check** (`USE_SELFCHECK=1`, default an): kurze vertrauenswürdige lokale Antworten (≤80 Zeichen) werden ein zweites Mal lokal erfragt — kostenlos, da lokale Tokens = 0. Widerspruch → Eskalation. **Eval-Beleg:** Kalibrierungstabelle zeigte 3 von 5 Fehlern bei Confidence=100 (Schwelle allein kann die nie fangen); mit Selbst-Check eskalieren alle 6 schweren Fehlaufgaben korrekt, nur 2 unnötige Eskalationen bei richtigen Antworten. Kern-Insight: **lokale Rechenzeit ist im Scoring gratis** — beliebig viele lokale Gegenchecks kosten nichts außer Latenz (~2s/Task, Budget 30s).
-- **Remote-Kappung:** `REMOTE_MAX_TOKENS` (default 512) + Kürze-Anweisung im Eskalations-Prompt ("Answer concisely and directly, no preamble"). Knappe Antworten sparen Completion-Tokens und verbessern laut Concise-CoT-Forschung bei großen Modellen teils sogar die Accuracy.
-- **Remote-Fehler-Fallback:** schlägt die Eskalation fehl, wird die (unsichere) lokale Antwort geliefert statt `""` — leer fällt beim Accuracy-Gate garantiert durch, lokal hat eine Chance.
-- **Kalibrierungs-Tabelle in der Eval** (`run_eval.py`): zeigt pro Confidence-Bereich, wie oft die lokale Antwort korrekt war → `CONFIDENCE_THRESHOLD` datenbasiert wählen statt raten.
-- **Eval verschärft:** 22 Aufgaben (16 normale + 6 schwere: große Multiplikation, obskures Wissen, harte Logik). Stand: 72,7 % lokal-only — die 6 schweren würden auf dem echten Harness eskalieren und vom großen Modell sehr wahrscheinlich korrekt beantwortet (lokal nicht testbar wegen der bekannten Modell-ID-Lücke, s. o.).
+- **Regex-Fallstrick:** Eine frühere `ANSWER`-Extraktion stoppte am ersten Zeilenumbruch — bei mehrzeiligem Code wurde fast alles abgeschnitten. Fix: bis zum `CONFIDENCE`-Marker (oder Textende) einfangen, nicht bis zum ersten `\n`.
+- **Cold-Start:** der allererste Ollama-Call nach Prozessstart kann das Modell noch laden müssen und >30s brauchen. Fix: expliziter Warm-up-Call vor der eigentlichen Aufgaben-Schleife.
+- **Windows/Git-Bash + Docker-Volumes:** `-v "$(pwd)/...":...` wird von Git Bash manchmal falsch übersetzt. Fix: `MSYS_NO_PATHCONV=1` + native Windows-Pfade (`C:/...`) verwenden.
+- **Lokale Rechenzeit ist im Scoring gratis** — beliebig viele lokale Gegenchecks (Selbst-Konsistenz, Code-Syntax) kosten 0 Tokens, nur Latenz (~2s/Check, Budget 30s/Aufgabe). Dieser Fakt ist der Kern-Hebel der ganzen Architektur.
+- **Reine Selbsteinschätzung (Confidence-Zahl) ist nicht robust** — ein Modell kann überzeugt falsch liegen. Deshalb zusätzliche objektive/statistische Absicherungen (Selbst-Konsistenz, Code-Syntax-Check, Kalibrierungstabelle) statt blind einer einzelnen Zahl zu vertrauen.
 
 ## 9. SUPPORT-WEGE
 
