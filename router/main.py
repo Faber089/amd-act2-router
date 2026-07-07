@@ -2,11 +2,13 @@ import re
 
 from router import config
 from router.categories import (
+    SUMMARISATION_ALWAYS_ESCALATE,
     classify,
     get_policy,
     math_answers_disagree,
     postprocess_answer,
     safe_eval_expression,
+    summarisation_format_violated,
 )
 from router.judge import (
     critique,
@@ -26,15 +28,14 @@ def _norm(s):
 
 def _ask_remote_with_policy(question, policy, stats):
     """Eskalation mit Kategorie-Feintuning: eigener max_tokens-Deckel,
-    reasoning_effort (Denk-Tokens aus, ausser sichtbares Kurz-CoT ist
-    gewuenscht) und optionaler CoT-Hint fuer Mathe/Logik."""
-    hint = policy.get("remote_hint")
-    prompt_question = f"{question}\n\n{hint}" if hint else question
+    reasoning_effort (Denk-Tokens aus) und Hint nur wo noetig (Kurz-CoT
+    fuer Logik, Code-only fuer Code-Aufgaben — sonst nackte Frage)."""
     text, tokens = ask_remote(
-        prompt_question,
+        question,
         max_tokens=policy.get("remote_max_tokens"),
         stats=stats,
         reasoning_effort=policy.get("remote_effort"),
+        hint=policy.get("remote_hint"),
     )
     # Kurz-CoT darf bei "only the number/name"-Aufgaben nicht in der
     # finalen Antwort landen — nur den Wert hinter 'Answer:' ausliefern.
@@ -142,6 +143,21 @@ def route(question, confidence_threshold=None, local_model=None,
             reason = f"Gegenrechnung widerspricht (Ausdruck ergibt {expr_result})"
             if stats is not None:
                 stats["math_crosscheck_disagreed"] = True
+
+    # Summarisation-Format-Gate (lokal = 0 Tokens): geforderte Satzzahl/
+    # Wortlimit/Bullet-Anzahl aus der Aufgabe parsen und pruefen. Ein
+    # Formatverstoss ist ein sicherer Judge-Fail — dann lieber eskalieren.
+    # Env SUMMARISATION_ALWAYS_ESCALATE=1 als harte Variante, falls das
+    # Leaderboard zeigt, dass die lokale Summarisation-Qualitaet nicht reicht.
+    if not escalate and category == "summarisation":
+        if SUMMARISATION_ALWAYS_ESCALATE:
+            escalate = True
+            reason = "Politik: Summarisation immer eskalieren (Env-Schalter)"
+        elif summarisation_format_violated(question, answer):
+            escalate = True
+            reason = "Summarisation-Formatvorgabe verletzt"
+            if stats is not None:
+                stats["summary_format_violated"] = True
 
     # Objektiver Code-Check (lokal = 0 Tokens, kein exec, nur ast.parse):
     # deckt Code Debugging/Generation ab, wo Selbst-Konsistenz wegen der

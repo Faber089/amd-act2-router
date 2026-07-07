@@ -19,17 +19,16 @@ _client = OpenAI(
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 
-def ask_remote(question, model=None, max_tokens=None, stats=None, reasoning_effort=None):
+def ask_remote(question, model=None, max_tokens=None, stats=None, reasoning_effort=None,
+               hint=None):
     model = model or config.REMOTE_MODEL
-    # Kuerze-Anweisung: kostet ~19 Prompt-Tokens, spart oft hunderte
-    # Completion-Tokens — und knappe Antworten schneiden bei grossen Modellen
-    # in Benchmarks sogar besser ab (Concise-CoT-Forschung). max_tokens als
-    # harte Obergrenze gegen Ausreisser.
-    prompt = (
-        f"{question}\n\n"
-        "Answer concisely and directly, no preamble. "
-        "If code is requested, provide the actual code."
-    )
+    # Prompt-Diaet (gemessen 7.7. abends): mit reasoning_effort=none antwortet
+    # Kimi von sich aus knapp (2-6 completion-Tokens bei Kurzantwort-Aufgaben)
+    # — die fruehere pauschale Kuerze-Anweisung (~19 Prompt-Tokens/Call) ist
+    # ueberfluessig. Nur die Kategorie-Politik haengt noch gezielt einen Hint
+    # an: Kurz-CoT fuer Logik (ohne CoT nachweislich 0/2 richtig) bzw.
+    # Code-only-Hinweis fuer Code-Aufgaben.
+    prompt = f"{question}\n\n{hint}" if hint else question
     kwargs = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],

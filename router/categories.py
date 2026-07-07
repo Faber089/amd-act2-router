@@ -57,12 +57,18 @@ def classify(question):
 #   sichtbares Denken ist steuerbar, verstecktes nicht.
 # always_escalate: Kategorie ist lokal aussichtslos (Datenlage!).
 
-_COT_HINT = "Think briefly step by step, then give the final line as 'Answer: <result>'."
+_COT_HINT = ("Think in at most 3 short steps, no restating the question, "
+             "then give the final line as 'Answer: <result>'.")
+_CODE_HINT = "State the bug in one short sentence, then give the complete corrected code."
 
+# Token-Diaet-Experiment 7.7. spaetabends (nackte Frage, effort=none):
+# Mathe 3/3 korrekt bei 2-3 completion-Tokens (inkl. Zinseszins, 347*289)
+# -> Mathe braucht KEIN CoT. Logik 0/2 korrekt ohne CoT ("Ann", "apples")
+# -> Logik BEHAELT das Kurz-CoT zwingend. Factual korrekt ohne alles.
 POLICY = {
     "factual_knowledge": {"remote_max_tokens": 128, "remote_effort": "none"},
     "math_reasoning": {
-        "remote_max_tokens": 300, "remote_effort": "none", "remote_hint": _COT_HINT,
+        "remote_max_tokens": 128, "remote_effort": "none",
         "math_crosscheck": True,
     },
     "sentiment": {
@@ -87,7 +93,7 @@ POLICY = {
                        "Tim Cook (PERSON); Apple (ORGANIZATION); Paris (LOCATION); 1911 (DATE)."),
     },
     "code_debugging": {
-        "remote_max_tokens": 512, "remote_effort": "none",
+        "remote_max_tokens": 512, "remote_effort": "none", "remote_hint": _CODE_HINT,
         "local_max_tokens": 512, "reject_identical": True,
     },
     "logic_puzzle": {
@@ -98,10 +104,47 @@ POLICY = {
         "remote_max_tokens": 400, "remote_effort": "none", "remote_hint": _COT_HINT,
     },
     "code_generation": {
-        "remote_max_tokens": 512, "remote_effort": "none",
+        "remote_max_tokens": 512, "remote_effort": "none", "remote_hint": _CODE_HINT,
         "local_max_tokens": 512,
     },
 }
+
+# Summarisation ist mit Format-Gate + Eskalation besser bedient als mit
+# blindem Vertrauen (Eval v2: 4/8 Judge-Fails, Formatverstoesse + fehlende
+# Kernfakten). Env-Schalter fuer die harte Variante (immer eskalieren) —
+# umlegen, falls das Leaderboard zeigt, dass die Accuracy nicht reicht.
+import os as _os
+SUMMARISATION_ALWAYS_ESCALATE = _os.environ.get("SUMMARISATION_ALWAYS_ESCALATE", "0") == "1"
+
+_SENT_LIMIT_RE = re.compile(r"\b(?:in\s+)?(?:exactly\s+)?(one|two|three|1|2|3)\s+(?:short\s+)?sentences?\b", re.I)
+_WORD_LIMIT_RE = re.compile(r"(?:no more than|at most|maximum(?: of)?|max\.?)\s+(\d+)\s+words", re.I)
+_BULLET_RE = re.compile(r"(one|two|three|four|five|\d+)\s+(?:short\s+)?bullet points?", re.I)
+_NUM_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+
+
+def summarisation_format_violated(question, answer):
+    """Prueft die im Aufgabentext geforderte Form (Satzzahl, Wortlimit,
+    Bullet-Anzahl) gegen die Antwort — rein lokal, 0 Tokens. True =
+    Verstoss -> eskalieren, denn Formatbruch ist ein sicherer Judge-Fail."""
+    if not answer:
+        return True
+    sentences = len([s for s in re.split(r"[.!?]+", answer) if s.strip()])
+    match = _SENT_LIMIT_RE.search(question)
+    if match:
+        limit = _NUM_WORDS.get(match.group(1).lower()) or int(match.group(1))
+        if sentences > limit:
+            return True
+    match = _WORD_LIMIT_RE.search(question)
+    if match and len(answer.split()) > int(match.group(1)) * 1.2:
+        return True
+    match = _BULLET_RE.search(question)
+    if match:
+        wanted = _NUM_WORDS.get(match.group(1).lower()) or int(match.group(1))
+        bullets = sum(1 for line in answer.splitlines()
+                      if re.match(r"\s*([-*•]|\d+[.)])\s+", line))
+        if bullets < wanted:
+            return True
+    return False
 
 
 def get_policy(category):
