@@ -41,12 +41,15 @@ lokales Modell  ──►  Judge (Confidence ≥ Schwelle?)  ──► [ja]  lok
 |---|---|
 | `router/config.py` | Zentrale Konfiguration — alles über Umgebungsvariablen steuerbar |
 | `router/local_client.py` | Ruft das lokale Modell (OpenAI-kompatibel, z. B. Ollama) auf |
-| `router/remote_client.py` | Ruft Fireworks AI auf und liest den Tokenverbrauch aus |
+| `router/remote_client.py` | Ruft Fireworks AI auf, mit Timeout/Token-Telemetrie |
 | `router/judge.py` | Wertet Selbsteinschätzung aus + optionaler skeptischer Kritiker |
 | `router/main.py` | Die Cascade-Logik (`route()`) |
-| `submission/run.py` | **Wettbewerbs-Entrypoint** — liest `/input/tasks.json`, schreibt `/output/results.json` (Participant-Guide-Vertrag) |
-| `eval/tasks.jsonl` | Eigene Testaufgaben (alle 8 Kategorien) mit erwarteten Antworten |
-| `eval/run_eval.py` | Misst Genauigkeit + Gesamt-Tokenverbrauch, für lokale Iteration |
+| `submission/run.py` | **Wettbewerbs-Entrypoint** — liest `/input/tasks.json`, schreibt `/output/results.json`; schaltet bei knappem Zeitbudget auf Remote-direkt um |
+| `entrypoint.sh` | Container-Start: eingebautes Ollama hochfahren, dann `submission.run` |
+| `requirements-submission.txt` | Schlanke Abhängigkeiten nur fürs Wettbewerbs-Image |
+| `eval/tasks.jsonl` | 64 Testaufgaben (8 je Kategorie) mit Referenzantworten + objektiven Checks (exakte Zahlen, Code-Tests) |
+| `eval/judge_llm.py` | Jury-naher LLM-Judge für die Eval (Rubrik wie im Participant Guide) |
+| `eval/run_eval.py` | Misst Accuracy (deterministisch + LLM-Judge), Tokens (prompt/completion), Latenzen, Eskalationsraten; schreibt JSON-Reports |
 | `demo/app.py` | FastAPI-Demo-App, wrappt `route()` — optionales Video-Hilfsmittel, keine Submission-Pflicht |
 | `demo/static/index.html` | Ein-Seiten-UI für die Demo (Vanilla JS, kein Build-Schritt) |
 
@@ -87,29 +90,33 @@ Das Docker-Image ist der eigentliche Submission-Artefakt: liest
 `/input/tasks.json`, schreibt `/output/results.json` (Participant-Guide-Vertrag,
 siehe `submission/run.py`).
 
+**Das Image ist self-contained:** Ollama-Server **und** die Modellgewichte des
+lokalen Modells werden zur Build-Zeit eingebacken (`entrypoint.sh` startet
+Ollama beim Containerstart). Auf der Judging-VM gibt es kein Host-Ollama und
+keinen garantierten Internetzugang außer dem Fireworks-Proxy — das Image darf
+sich auf nichts von außen verlassen.
+
 ```bash
-docker build -t amd-act2-router .
+docker buildx build --platform linux/amd64 -t amd-act2-router --load .
 
 docker run --rm \
   -v "$(pwd)/input:/input" -v "$(pwd)/output:/output" \
   -e FIREWORKS_API_KEY="dein-key" \
   -e FIREWORKS_BASE_URL="https://api.fireworks.ai/inference/v1" \
-  -e ALLOWED_MODELS="gemma-4-26b-a4b-it,minimax-m3" \
-  -e OLLAMA_BASE_URL="http://host.docker.internal:11434/v1" \
+  -e ALLOWED_MODELS="accounts/fireworks/models/kimi-k2p7-code" \
   amd-act2-router
 ```
 
 `input/tasks.json` lokal selbst anlegen (Format: `[{"task_id": "t1", "prompt": "..."}]`),
-Ergebnis erscheint danach in `output/results.json`.
+Ergebnis erscheint danach in `output/results.json`. Kein `OLLAMA_BASE_URL`
+nötig — der Container nutzt sein eingebautes Ollama (für lokale Entwicklung
+per Env-Var weiterhin übersteuerbar).
 
 > **Windows/Git-Bash-Hinweis (verifiziert):** `$(pwd)`-Pfade werden von Git
 > Bash manchmal falsch nach Windows übersetzt, wodurch die Mounts leer
 > bleiben (`could not read /input/tasks.json`). Funktioniert zuverlässig mit
 > nativen Windows-Pfaden und `MSYS_NO_PATHCONV=1` davor, z. B.:
 > `MSYS_NO_PATHCONV=1 docker run --rm -v "C:/Pfad/zu/input:/input" -v "C:/Pfad/zu/output:/output" ...`
-
-> Hinweis: Aus dem Container heraus ist das Ollama auf dem Host über
-> `host.docker.internal` erreichbar, nicht über `localhost`.
 
 ### Für die Submission bauen & in eine Registry pushen
 

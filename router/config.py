@@ -48,6 +48,40 @@ FIREWORKS_API_KEY = os.environ.get("FIREWORKS_API_KEY")
 # Hoch genug fuer Code-Aufgaben (abruptes Abschneiden wuerde Accuracy kosten),
 # niedrig genug um Laber-Antworten zu kappen.
 REMOTE_MAX_TOKENS = int(os.environ.get("REMOTE_MAX_TOKENS", "512"))
+# Harte Zeitgrenze pro Remote-Call: das 30s-pro-Aufgabe-Limit des Wettbewerbs
+# darf nie durch einen haengenden HTTP-Call gerissen werden.
+REMOTE_TIMEOUT_SECONDS = float(os.environ.get("REMOTE_TIMEOUT_SECONDS", "25"))
+# temperature=0: deterministisch, keine Kreativ-Streuung — kuerzere, stabilere
+# Antworten und reproduzierbare Eval-Zahlen.
+REMOTE_TEMPERATURE = float(os.environ.get("REMOTE_TEMPERATURE", "0"))
+# kimi-k2p7-code ist ein Reasoning-Modell: unsichtbare Denk-Tokens zaehlen
+# voll als completion_tokens (gemessen 7.7.: 40 Tokens fuer die Ein-Wort-
+# Antwort "Tokyo"). Fireworks akzeptiert reasoning_effort="none" -> 3 Tokens.
+# Werte: "none" (aus), "low", "" (= Parameter gar nicht senden).
+# Bei 400-Fehler (falls der Wettbewerbs-Proxy den Parameter nicht kennt)
+# wiederholt remote_client den Call automatisch ohne den Parameter.
+REMOTE_REASONING_EFFORT = os.environ.get("REMOTE_REASONING_EFFORT", "none")
+
+# --- Lokale Generierung begrenzen (Latenz-Schutz) ---
+# Auf der Judging-VM (Hardware unbekannt, vermutlich reine CPU) darf eine
+# lokale Antwort nie das 30s-Budget sprengen. max_tokens deckelt die
+# Generierungsdauer hart; Hauptantwort deterministisch (temperature 0),
+# der Selbst-Konsistenz-Check sampelt bewusst mit Temperatur >0 — nur so
+# misst der Vergleich echte Instabilitaet statt zweimal denselben Text.
+LOCAL_MAX_TOKENS = int(os.environ.get("LOCAL_MAX_TOKENS", "320"))
+LOCAL_TEMPERATURE = float(os.environ.get("LOCAL_TEMPERATURE", "0"))
+SELFCHECK_TEMPERATURE = float(os.environ.get("SELFCHECK_TEMPERATURE", "0.8"))
+
+# --- Eval-Judge (NUR eval/, nie Teil der Submission-Logik) ---
+# Der echte Wettbewerbs-Judge ist ein unbekanntes, starkes LLM. Beste
+# Annaeherung: remote = minimax-m3 (bewusst ANDERE Modellfamilie als das
+# Eskalations-Modell kimi -> keine Selbst-Bevorzugung), local = qwen3.5 via
+# Ollama als kostenlose Offline-Alternative.
+EVAL_JUDGE_BACKEND = os.environ.get("EVAL_JUDGE_BACKEND", "remote")
+EVAL_JUDGE_MODEL = os.environ.get(
+    "EVAL_JUDGE_MODEL", "accounts/fireworks/models/minimax-m3"
+)
+EVAL_JUDGE_LOCAL_MODEL = os.environ.get("EVAL_JUDGE_LOCAL_MODEL", "qwen3.5:latest")
 
 # --- Routing-Verhalten ---
 # Ab welcher Selbsteinschaetzung wird der lokalen Antwort vertraut.

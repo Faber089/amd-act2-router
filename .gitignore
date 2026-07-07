@@ -16,3 +16,6 @@ Thumbs.db
 
 # Lokale Debug-Skripte
 debug_local.py
+
+# Eval-Reports (lokale Messhistorie, nicht fuers Repo)
+eval/results/
