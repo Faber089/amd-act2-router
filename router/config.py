@@ -69,6 +69,12 @@ REMOTE_REASONING_EFFORT = os.environ.get("REMOTE_REASONING_EFFORT", "none")
 # der Selbst-Konsistenz-Check sampelt bewusst mit Temperatur >0 — nur so
 # misst der Vergleich echte Instabilitaet statt zweimal denselben Text.
 LOCAL_MAX_TOKENS = int(os.environ.get("LOCAL_MAX_TOKENS", "320"))
+# Zeitbudget fuer ALLE lokalen Schritte einer Aufgabe zusammen. Judging-VM
+# laut Guide-Update: 2 vCPU/4GB — gemessen (Simulation 8.7.): gestapelte
+# lokale Calls erreichen sonst 25s beim 30s-Hardlimit pro Aufgabe. Ist das
+# Budget verbraucht, wird nicht weiter geprueft, sondern entschieden
+# (eskalieren geht in 1-5s).
+LOCAL_TIME_BUDGET_SECONDS = float(os.environ.get("LOCAL_TIME_BUDGET_SECONDS", "18"))
 LOCAL_TEMPERATURE = float(os.environ.get("LOCAL_TEMPERATURE", "0"))
 SELFCHECK_TEMPERATURE = float(os.environ.get("SELFCHECK_TEMPERATURE", "0.8"))
 

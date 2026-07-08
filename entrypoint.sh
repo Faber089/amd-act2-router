@@ -6,6 +6,11 @@
 # nicht gegen die 60s).
 set -u
 
+# Kleiner Kontext = weniger RAM + schnelleres Prompt-Processing auf der
+# 2-vCPU/4-GB-Judging-VM (Guide-Update 8.7.). Unsere Prompts bleiben weit
+# unter 2048 Tokens.
+export OLLAMA_CONTEXT_LENGTH=2048
+
 ollama serve >/tmp/ollama.log 2>&1 &
 
 i=0

@@ -1,9 +1,11 @@
 import re
+import time
 
 from router import config
 from router.categories import (
     SUMMARISATION_ALWAYS_ESCALATE,
     classify,
+    format_number,
     get_policy,
     math_answers_disagree,
     postprocess_answer,
@@ -24,6 +26,25 @@ from router.remote_client import ask_remote
 def _norm(s):
     """Antworten fuer den Konsistenz-Vergleich vereinheitlichen."""
     return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def _local_math_expression(question, local_model, temperature=None):
+    """Laesst das lokale Modell die Aufgabe in einen reinen Arithmetik-
+    Ausdruck uebersetzen und wertet ihn sicher aus. None = kein brauchbarer
+    Ausdruck. Kostet 0 Tokens, nur lokale Rechenzeit."""
+    expr_text, _ = ask_local_raw(
+        f"Task: {question}\n"
+        "Write ONE single Python arithmetic expression that computes the "
+        "final answer. Reply with ONLY the expression — no words, no "
+        "backticks, no equals sign.",
+        model=local_model,
+        max_tokens=64,
+        temperature=temperature,
+    )
+    if not expr_text.strip():
+        return None
+    expr_line = expr_text.strip().splitlines()[-1].strip("` ")
+    return safe_eval_expression(expr_line)
 
 
 def _ask_remote_with_policy(question, policy, stats):
@@ -65,9 +86,10 @@ def route(question, confidence_threshold=None, local_model=None,
     # Lokal aussichtslose Kategorien sofort eskalieren. Datenlage (Eval v2,
     # 7.7.): logic_puzzle lokal 3/8 korrekt und ALLE Fehler mit Confidence
     # 100 — die Kaskade kann diese Fehler nicht erkennen, nur vermeiden.
-    if policy.get("always_escalate"):
+    escalate_pattern = policy.get("escalate_if")
+    if policy.get("always_escalate") or (escalate_pattern and escalate_pattern.search(question)):
         if stats is not None:
-            stats["escalation_reason"] = f"policy: {category} lokal aussichtslos"
+            stats["escalation_reason"] = f"policy: {category} direkt remote"
         if verbose:
             print(f"[POLICY: {category} -> direkt remote]")
         try:
@@ -77,6 +99,13 @@ def route(question, confidence_threshold=None, local_model=None,
             if verbose:
                 print(f"[REMOTE-FEHLER: {exc}] -> lokaler Notversuch")
             # faellt durch in den lokalen Pfad — besser als leere Antwort
+
+    # Zeitbudget fuer alle lokalen Schritte dieser Aufgabe (2-vCPU-VM:
+    # gestapelte lokale Calls rissen in der Simulation fast das 30s-Limit).
+    route_start = time.monotonic()
+
+    def local_time_left():
+        return config.LOCAL_TIME_BUDGET_SECONDS - (time.monotonic() - route_start)
 
     local_text, _ = ask_local(
         question,
@@ -105,7 +134,9 @@ def route(question, confidence_threshold=None, local_model=None,
     # Hauptantwort ist deterministisch (temperature 0), erst ein gesampelter
     # Gegenlauf macht Instabilitaet ueberhaupt sichtbar.
     if (not escalate and config.USE_SELFCHECK
-            and len(answer) <= config.SELFCHECK_MAX_ANSWER_LEN):
+            and not policy.get("skip_selfcheck")
+            and len(answer) <= config.SELFCHECK_MAX_ANSWER_LEN
+            and local_time_left() > 6):
         check_text, _ = ask_local(
             question,
             model=local_model,
@@ -123,26 +154,24 @@ def route(question, confidence_threshold=None, local_model=None,
     # Mathe-Gegenrechnung (lokal + deterministisch, 0 Tokens): das lokale
     # Modell uebersetzt die Aufgabe in EINEN Arithmetik-Ausdruck, Python
     # rechnet nach. Widerspruch zur direkten Antwort -> eines von beiden ist
-    # falsch -> eskalieren. Faengt die confident-wrong-Rechenfehler (Eval v2:
-    # Zinseszins 10800 statt 10580 mit Conf 95).
+    # falsch -> eskalieren (~35 Tokens). KEIN 2:1-Override durch einen
+    # Doppel-Ausdruck (getestet 8.7.): beide Ausdruecke machen oft DENSELBEN
+    # Uebersetzungsfehler und ueberstimmen dann eine korrekte Direktantwort.
     if not escalate and policy.get("math_crosscheck"):
-        expr_text, _ = ask_local_raw(
-            f"Task: {question}\n"
-            "Write ONE single Python arithmetic expression that computes the "
-            "final answer. Reply with ONLY the expression — no words, no "
-            "backticks, no equals sign.",
-            model=local_model,
-            max_tokens=64,
-        )
-        expr_line = expr_text.strip().splitlines()[-1].strip("` ") if expr_text.strip() else ""
-        expr_result = safe_eval_expression(expr_line)
-        if stats is not None:
-            stats["math_crosscheck_result"] = expr_result
-        if math_answers_disagree(answer, expr_result):
+        if local_time_left() <= 6:
+            # Keine Zeit mehr fuer die Gegenrechnung: ungeprueftes Mathe ist
+            # zu riskant (confident-wrong!) -> lieber die schnelle Eskalation.
             escalate = True
-            reason = f"Gegenrechnung widerspricht (Ausdruck ergibt {expr_result})"
+            reason = "Zeitbudget: Mathe-Gegenrechnung nicht mehr moeglich"
+        else:
+            expr_result = _local_math_expression(question, local_model)
             if stats is not None:
-                stats["math_crosscheck_disagreed"] = True
+                stats["math_crosscheck_result"] = expr_result
+            if math_answers_disagree(answer, expr_result):
+                escalate = True
+                reason = f"Gegenrechnung widerspricht (Ausdruck ergibt {expr_result})"
+                if stats is not None:
+                    stats["math_crosscheck_disagreed"] = True
 
     # Summarisation-Format-Gate (lokal = 0 Tokens): geforderte Satzzahl/
     # Wortlimit/Bullet-Anzahl aus der Aufgabe parsen und pruefen. Ein
@@ -183,7 +212,8 @@ def route(question, confidence_threshold=None, local_model=None,
     # Nacktes Label erkannt -> Begruendung lokal nachfordern (0 Tokens) und
     # anhaengen. Bewusst NACH dem Selbst-Konsistenz-Check, der das rohe Label
     # vergleicht. Schlaegt es fehl, bleibt das Label allein stehen.
-    if not escalate and policy.get("needs_justification") and len(answer.strip()) < 25:
+    if (not escalate and policy.get("needs_justification")
+            and len(answer.strip()) < 25 and local_time_left() > 4):
         try:
             reason_text, _ = ask_local_raw(
                 f"Text: {question}\n"

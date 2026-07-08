@@ -70,6 +70,9 @@ POLICY = {
     "math_reasoning": {
         "remote_max_tokens": 128, "remote_effort": "none",
         "math_crosscheck": True,
+        # Zahl + kurzer Weg reichen lokal — kleiner Deckel = schnellere
+        # Generierung auf der 2-vCPU-VM (Latenz, nicht Tokens).
+        "local_max_tokens": 96,
     },
     "sentiment": {
         "remote_max_tokens": 96, "remote_effort": "none",
@@ -81,6 +84,10 @@ POLICY = {
                        'reviewer complains about slow delivery." Never answer '
                        'with the label alone.'),
         "needs_justification": True,
+        # VM-Simulation 8.7.: Antwort+Selfcheck+Nachforderung stapelten sich
+        # auf 24,8s (30s-Limit!). Der Selfcheck bringt bei Sentiment am
+        # wenigsten (Label-Stabilitaet war nie das Problem) -> raus.
+        "skip_selfcheck": True,
     },
     "summarisation": {
         "remote_max_tokens": 192, "remote_effort": "none",
@@ -106,6 +113,13 @@ POLICY = {
     "code_generation": {
         "remote_max_tokens": 512, "remote_effort": "none", "remote_hint": _CODE_HINT,
         "local_max_tokens": 512,
+        # Edge-Case-Signalwoerter = der Aufgabensteller testet genau das,
+        # woran 2B-Modelle scheitern (zweifach belegt: Eval id 60 UND
+        # offizielle practice-08, identischer Duplikat-Bug). Direkt remote —
+        # auf der 2-vCPU-VM auch noch schneller (1-5s statt >20s lokal).
+        "escalate_if": re.compile(
+            r"handling|correctly handle|edge case|duplicat|distinct"
+            r"|empty (list|string)|negative number|robust", re.I),
     },
 }
 
@@ -173,6 +187,15 @@ def safe_eval_expression(expr):
         return eval(compile(tree, "<expr>", "eval"), {"__builtins__": {}}, {})
     except Exception:
         return None
+
+
+def format_number(x):
+    """Rechenergebnis als knappe Antwort-Zahl formatieren (10580.0 -> 10580)."""
+    if x is None:
+        return ""
+    if abs(x - round(x)) < 1e-9:
+        return str(int(round(x)))
+    return f"{x:.4f}".rstrip("0").rstrip(".")
 
 
 def numbers_in(text):
