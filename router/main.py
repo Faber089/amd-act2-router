@@ -8,6 +8,7 @@ from router.categories import (
     format_number,
     get_policy,
     math_answers_disagree,
+    numbers_in,
     postprocess_answer,
     safe_eval_expression,
     summarisation_format_violated,
@@ -145,7 +146,15 @@ def route(question, confidence_threshold=None, local_model=None,
             max_tokens=policy.get("local_max_tokens"),
         )
         check_answer, _, _ = parse_local_answer(check_text, threshold=confidence_threshold)
-        if _norm(check_answer) != _norm(answer):
+        # Zahlen numerisch vergleichen: '30' vs '30.0' ist KEIN Widerspruch
+        # (gemessen: 35 verschenkte Tokens durch genau diesen Fall — die
+        # String-Normalisierung macht aus '30.0' sonst '300').
+        nums_a, nums_b = numbers_in(answer), numbers_in(check_answer)
+        numerically_equal = (
+            len(nums_a) == 1 and len(nums_b) == 1
+            and abs(nums_a[0] - nums_b[0]) < max(1e-9, abs(nums_a[0]) * 1e-9)
+        )
+        if not numerically_equal and _norm(check_answer) != _norm(answer):
             escalate = True
             reason = f"Selbst-Check widerspricht ('{answer[:30]}' vs '{check_answer[:30]}')"
             if stats is not None:

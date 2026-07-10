@@ -10,6 +10,10 @@ set -u
 # 2-vCPU/4-GB-Judging-VM (Guide-Update 8.7.). Unsere Prompts bleiben weit
 # unter 2048 Tokens.
 export OLLAMA_CONTEXT_LENGTH=2048
+# Modell NIE entladen: Ollama wirft Modelle nach 5min Idle aus dem RAM —
+# eine laengere Remote-Phase im 10-Min-Lauf wuerde sonst mitten im
+# Wettbewerb einen Reload (~10-20s auf 2 vCPU) erzwingen = Timeout-Gefahr.
+export OLLAMA_KEEP_ALIVE=-1
 
 ollama serve >/tmp/ollama.log 2>&1 &
 
