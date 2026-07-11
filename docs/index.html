@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cascade Router — AMD Developer Hackathon ACT II, Track 1</title>
+<style>
+  :root {
+    --bg: #0b0d12;
+    --bg-card: #12151c;
+    --border: #232733;
+    --text: #e7e9ee;
+    --text-dim: #9aa1b2;
+    --accent: #5b8cff;
+    --accent-2: #34d399;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f8fb;
+      --bg-card: #ffffff;
+      --border: #e2e5ec;
+      --text: #14161c;
+      --text-dim: #5a6072;
+      --accent: #2f5fe0;
+      --accent-2: #0f9d68;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 48px 20px 80px; }
+  header { margin-bottom: 40px; }
+  .badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 4px 12px;
+    margin-bottom: 16px;
+  }
+  h1 { font-size: 32px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .subtitle { color: var(--text-dim); font-size: 17px; margin: 0; }
+  .links { margin-top: 20px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent);
+    color: #fff;
+    text-decoration: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .btn.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  section { margin-top: 40px; }
+  h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    margin: 0 0 16px;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .flow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  .flow .step {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+  .flow .arrow { color: var(--text-dim); }
+  .flow .step.escalate { border-color: var(--accent); color: var(--accent); }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+  }
+  .stat {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .stat .num {
+    font-size: 26px;
+    font-weight: 700;
+    font-family: var(--mono);
+  }
+  .stat .num.green { color: var(--accent-2); }
+  .stat .num.blue { color: var(--accent); }
+  .stat .label { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-dim); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+  td code { font-family: var(--mono); font-size: 13px; background: var(--bg); padding: 2px 6px; border-radius: 4px; }
+  ul.tags { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  ul.tags li {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  footer {
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  a { color: var(--accent); }
+  .note {
+    font-size: 13px;
+    color: var(--text-dim);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 16px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="badge">AMD Developer Hackathon · ACT II · Track 1</span>
+    <h1>Cascade Router: Local-First AI Agent</h1>
+    <p class="subtitle">A hybrid routing agent that answers every task locally at zero counted tokens first, and escalates to Fireworks AI only when the local answer can't be trusted — across all 8 required task categories.</p>
+    <div class="links">
+      <a class="btn" href="https://github.com/Faber089/amd-act2-router" target="_blank" rel="noopener">GitHub Repository</a>
+      <a class="btn secondary" href="https://github.com/Faber089/amd-act2-router#readme" target="_blank" rel="noopener">Read the docs</a>
+    </div>
+  </header>
+
+  <section>
+    <h2>How it routes</h2>
+    <div class="card">
+      <div class="flow">
+        <span class="step">Task in</span>
+        <span class="arrow">&rarr;</span>
+        <span class="step">1. Classify (regex, 0 tok)</span>
+        <span class="arrow">&rarr;</span>
+        <span class="step">2. Solve locally (Qwen3 1.7B, 0 tok)</span>
+        <span class="arrow">&rarr;</span>
+        <span class="step">3. Verify (category-specific checks, 0 tok)</span>
+        <span class="arrow">&rarr;</span>
+        <span class="step escalate">4. Escalate to Fireworks (only if unsafe)</span>
+        <span class="arrow">&rarr;</span>
+        <span class="step">5. Return answer</span>
+      </div>
+      <p class="note">Verification is deterministic per category — a locally-generated Python expression cross-checks math, an AST parse validates code, entity-union catches missing NER labels, a label-consistency vote guards sentiment. Escalation only fires when local verification cannot confirm a safe answer, so most tasks never touch a counted token.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Measured results (internal 64-task benchmark, LLM-judge graded)</h2>
+    <div class="grid">
+      <div class="stat">
+        <div class="num green">92.2%</div>
+        <div class="label">Judge accuracy</div>
+      </div>
+      <div class="stat">
+        <div class="num blue">2,146</div>
+        <div class="label">Total remote tokens</div>
+      </div>
+      <div class="stat">
+        <div class="num">6 / 8</div>
+        <div class="label">Practice tasks solved at 0 tokens</div>
+      </div>
+      <div class="stat">
+        <div class="num">&lt;12s</div>
+        <div class="label">Max latency per task (30s limit)</div>
+      </div>
+    </div>
+    <p class="note">Internal benchmark against our own judge model — not a leaderboard score. Measured on a 2 vCPU / 4 GB simulated judging environment.</p>
+  </section>
+
+  <section>
+    <h2>8 task categories, each with its own local safeguard</h2>
+    <div class="card">
+      <table>
+        <tr><th>Category</th><th>Local safeguard</th></tr>
+        <tr><td>Factual Knowledge</td><td>Complete-answer hint, two-part question detection</td></tr>
+        <tr><td>Math Reasoning</td><td>Local counter-calculation (Python expression, cross-checked)</td></tr>
+        <tr><td>Sentiment</td><td>Label-majority vote across local runs</td></tr>
+        <tr><td>Summarisation</td><td>Format/length gate + local retry on violation</td></tr>
+        <tr><td>Named Entity Recognition</td><td>Entity union + name/date normalization</td></tr>
+        <tr><td>Code Debugging</td><td>AST syntax check + identical-code rejection</td></tr>
+        <tr><td>Logic Puzzles</td><td>Escalated by policy (local model unreliable here)</td></tr>
+        <tr><td>Code Generation</td><td>AST syntax check + local retry on prose-only answers</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Stack</h2>
+    <ul class="tags">
+      <li>Python</li>
+      <li>Docker (linux/amd64)</li>
+      <li>Ollama (container-embedded)</li>
+      <li>Qwen3 1.7B (local)</li>
+      <li>Fireworks AI (kimi-k2p7-code)</li>
+    </ul>
+  </section>
+
+  <footer>
+    Built for the AMD Developer Hackathon: ACT II, Track 1 — General-Purpose AI Agent.
+    Submission artifact is the Docker image; this page is supplementary project documentation.
+    <br>
+    <a href="https://github.com/Faber089/amd-act2-router">github.com/Faber089/amd-act2-router</a>
+  </footer>
+
+</div>
+</body>
+</html>
