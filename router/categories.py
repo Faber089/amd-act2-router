@@ -118,9 +118,11 @@ POLICY = {
     "math_reasoning": {
         "remote_max_tokens": 128, "remote_effort": "none",
         "math_crosscheck": True,
-        # Zahl + kurzer Weg reichen lokal — kleiner Deckel = schnellere
-        # Generierung auf der 2-vCPU-VM (Latenz, nicht Tokens).
-        "local_max_tokens": 96,
+        # 96->160 (11.7.): bei 96 wurde eine ausfuehrliche Antwort mitten in
+        # der Rechnung abgeschnitten (Truncation), was zu einer verzerrten
+        # finalen Zahl fuehren kann. 160 laesst genug Platz fuer eine volle
+        # Chain-of-Thought-Antwort, bleibt aber weit unter dem Latenz-Budget.
+        "local_max_tokens": 160,
     },
     "sentiment": {
         "remote_max_tokens": 96, "remote_effort": "none",
@@ -131,6 +133,16 @@ POLICY = {
                        '<label> - <one short reason>. Example: "negative - the '
                        'reviewer complains about slow delivery." Never answer '
                        'with the label alone.'),
+        # Live-Bug 11.7. (VM-Test des gepushten Images, practice-03): der
+        # lokale Hint gilt nur fuers lokale Modell -- eine Eskalation nach
+        # Fireworks bekam KEINE Formatvorgabe und lieferte nur "Mixed."
+        # zurueck, ohne Begruendung. Denselben Hint auch beim Remote-Call
+        # mitschicken behebt das (kostet ein paar Prompt-Tokens, verhindert
+        # aber einen sicheren Judge-Fail).
+        "remote_hint": ('Your answer must follow exactly this pattern: '
+                        '<label> - <one short reason>. Example: "negative - the '
+                        'reviewer complains about slow delivery." Never answer '
+                        'with the label alone.'),
         "needs_justification": True,
         # VM-Simulation 8.7.: Antwort+Selfcheck+Nachforderung stapelten sich
         # auf 24,8s (30s-Limit!). Der Selfcheck bringt bei Sentiment am
@@ -170,7 +182,11 @@ POLICY = {
     },
     "code_debugging": {
         "remote_max_tokens": 512, "remote_effort": "none", "remote_hint": _CODE_HINT,
-        "local_max_tokens": 512, "reject_identical": True,
+        # 512->400 (Robustheits-Audit 11.7.): 512 Tokens Generierung brauchen
+        # auf der 2-vCPU-VM bis zu ~25s — der Live-Test des gepushten Images
+        # zeigte 26,5s bei einem 30s-Hardlimit. 400 reicht fuer jede normale
+        # Funktion und kauft ~5s Sicherheitspuffer auf langsamer Hardware.
+        "local_max_tokens": 400, "reject_identical": True,
         # qwen3-Router-Lauf 11.7.: 3 Judge-Fails, weil die lokale Antwort den
         # Bug nur in PROSA erklaerte statt korrigierten Code zu liefern.
         # Ohne Code kann die Antwort nie korrekt sein -> eskalieren.
@@ -193,7 +209,7 @@ POLICY = {
     },
     "code_generation": {
         "remote_max_tokens": 512, "remote_effort": "none", "remote_hint": _CODE_HINT,
-        "local_max_tokens": 512,
+        "local_max_tokens": 400,
         "require_code": True,
         "default_confidence": 75,
         # KEIN escalate_if mehr (Stand 11.7.): das Edge-Case-Muster stammte
@@ -300,14 +316,22 @@ def numbers_in(text):
 
 def math_answers_disagree(local_answer, expr_result):
     """True, wenn die direkte lokale Antwort dem Rechenergebnis widerspricht
-    (dann ist mindestens eines falsch -> eskalieren)."""
+    (dann ist mindestens eines falsch -> eskalieren).
+
+    Live-Bug gefunden 11.7. (VM-Test des gepushten Images, practice-02):
+    bei ausfuehrlichen Antworten mit mehreren Zwischenrechnungen ("240 * 0.15
+    = 36 ... total 336 ... verbleiben -96") tauchen viele Zahlen im Text auf.
+    Die alte "irgendeine Zahl stimmt"-Pruefung fand zufaellig eine passende
+    Zwischenzahl und liess die falsche FINALE Antwort (-96 statt 144) durch.
+    Fix: nur die LETZTE Zahl zaehlt -- das ist bei Chain-of-Thought-Antworten
+    so gut wie immer die abschliessend genannte Antwort."""
     if expr_result is None:
         return False  # keine Gegenrechnung moeglich -> kein Urteil
     answer_numbers = numbers_in(local_answer)
     if not answer_numbers:
         return True  # Zahl gefordert, keine Zahl geliefert
-    return not any(abs(n - expr_result) < max(1e-6, abs(expr_result) * 1e-9)
-                   for n in answer_numbers)
+    final = answer_numbers[-1]
+    return not (abs(final - expr_result) < max(1e-6, abs(expr_result) * 1e-9))
 
 
 # --- NER-Vereinigungsmenge (0 Tokens, Recall-Boost) ---

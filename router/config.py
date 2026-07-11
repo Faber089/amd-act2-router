@@ -48,8 +48,15 @@ ALLOWED_MODELS = [
     if m.strip()
 ]
 # REMOTE_MODEL erlaubt gezieltes Testen gegen ein bestimmtes Modell aus der
-# Liste; ohne Override wird einfach das erste erlaubte Modell verwendet.
-REMOTE_MODEL = os.environ.get("REMOTE_MODEL") or ALLOWED_MODELS[0]
+# Liste. Ohne Override wird kimi-k2p7-code bevorzugt, egal an welcher
+# Position es in ALLOWED_MODELS steht — die Reihenfolge der Harness-Env ist
+# nicht garantiert, und ALLOWED_MODELS[0] koennte minimax-m3 sein (gemessen:
+# +~120 Prompt-Tokens Template-Overhead PRO CALL gegenueber kimi, 141 vs. 22
+# fuer dieselbe Frage). Faellt kimi aus der Liste, greift das erste Modell.
+REMOTE_MODEL = (
+    os.environ.get("REMOTE_MODEL")
+    or next((m for m in ALLOWED_MODELS if "kimi" in m), ALLOWED_MODELS[0])
+)
 FIREWORKS_API_KEY = os.environ.get("FIREWORKS_API_KEY")
 
 # Obergrenze fuer Remote-Antworten: verhindert beliebig teure Eskalationen.

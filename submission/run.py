@@ -51,15 +51,22 @@ TIME_BUDGET_SECONDS = int(os.environ.get("TIME_BUDGET_SECONDS", str(9 * 60)))
 
 def write_results(results, tasks):
     """Schreibt results.json und fuellt fehlende task_ids leer auf, damit die
-    Datei immer vollstaendig und gueltig ist -- auch nach Crash/Zeitablauf."""
+    Datei immer vollstaendig und gueltig ist -- auch nach Crash/Zeitablauf.
+    Schema-Haertung (Audit 11.7.): jede Zeile hat garantiert task_id UND
+    answer als STRINGS -- null/Nicht-String waere INVALID_RESULTS_SCHEMA."""
     answered = {r["task_id"] for r in results}
-    for task in tasks:
+    for i, task in enumerate(tasks):
         task_id = task.get("task_id")
         if task_id not in answered:
             results.append({"task_id": task_id, "answer": ""})
+    clean = [
+        {"task_id": str(r.get("task_id") or f"task-{i + 1}"),
+         "answer": r.get("answer") if isinstance(r.get("answer"), str) else str(r.get("answer") or "")}
+        for i, r in enumerate(results)
+    ]
     os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
     with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
+        json.dump(clean, f, ensure_ascii=False, indent=2)
 
 
 def main():

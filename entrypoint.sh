@@ -6,10 +6,11 @@
 # nicht gegen die 60s).
 set -u
 
-# Kleiner Kontext = weniger RAM + schnelleres Prompt-Processing auf der
-# 2-vCPU/4-GB-Judging-VM (Guide-Update 8.7.). Unsere Prompts bleiben weit
-# unter 2048 Tokens.
-export OLLAMA_CONTEXT_LENGTH=2048
+# Kontextfenster 4096 (Robustheits-Audit 11.7.): bei 2048 wuerde eine lange
+# Summarisation-Passage (>350 Woerter) plus Format-Prompt still abgeschnitten
+# — Muell-Antwort ohne Fehlermeldung. 4096 kostet bei einem 1,7B-Modell nur
+# wenige hundert MB KV-Cache und passt sicher ins 4-GB-Budget der Judging-VM.
+export OLLAMA_CONTEXT_LENGTH=4096
 # Modell NIE entladen: Ollama wirft Modelle nach 5min Idle aus dem RAM —
 # eine laengere Remote-Phase im 10-Min-Lauf wuerde sonst mitten im
 # Wettbewerb einen Reload (~10-20s auf 2 vCPU) erzwingen = Timeout-Gefahr.
