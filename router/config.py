@@ -14,10 +14,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Lokales Modell (Tokens zaehlen 0) ---
-# Standard: Ollama auf dem Host. Im Docker-Container muss die Adresse auf
-# host.docker.internal zeigen -> per Env-Var OLLAMA_BASE_URL ueberschreibbar.
-LOCAL_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-LOCAL_MODEL = os.environ.get("LOCAL_MODEL", "gemma2:2b")
+# Zwei Backends (Sebastians Anweisung 11.7.: LM Studio fuer alle Dev-Laeufe,
+# weil es auf seiner AMD-GPU deutlich schneller laeuft):
+#   lmstudio — OpenAI-kompatibles API auf Port 1234, Dev-Default
+#   ollama   — natives API auf Port 11434; bleibt die Engine IM
+#              Submission-Container (Judging-VM hat keine GPU, LM Studio ist
+#              nicht containerisierbar) -> Dockerfile setzt LOCAL_BACKEND.
+LOCAL_BACKEND = os.environ.get("LOCAL_BACKEND", "lmstudio")
+_DEFAULT_LOCAL_URL = ("http://localhost:1234/v1" if LOCAL_BACKEND == "lmstudio"
+                      else "http://localhost:11434/v1")
+LOCAL_BASE_URL = os.environ.get("OLLAMA_BASE_URL", _DEFAULT_LOCAL_URL)
+LOCAL_MODEL = os.environ.get("LOCAL_MODEL", "qwen/qwen3-1.7b"
+              if LOCAL_BACKEND == "lmstudio" else "qwen3:1.7b")
 
 # --- Remote-Modell (Fireworks, Tokens zaehlen) ---
 # FIREWORKS_BASE_URL und ALLOWED_MODELS werden vom Harness zur Laufzeit
@@ -77,6 +85,10 @@ LOCAL_MAX_TOKENS = int(os.environ.get("LOCAL_MAX_TOKENS", "320"))
 LOCAL_TIME_BUDGET_SECONDS = float(os.environ.get("LOCAL_TIME_BUDGET_SECONDS", "18"))
 LOCAL_TEMPERATURE = float(os.environ.get("LOCAL_TEMPERATURE", "0"))
 SELFCHECK_TEMPERATURE = float(os.environ.get("SELFCHECK_TEMPERATURE", "0.8"))
+# Qwen3-Modelle denken per Default in <think>-Bloecken. Lokal kostet das
+# 0 Tokens, aber viel CPU-Zeit -> Default AUS (/no_think). Pro Kategorie
+# per Politik-Flag "local_think" gezielt einschaltbar (z. B. Logik).
+LOCAL_THINK = os.environ.get("LOCAL_THINK", "0") == "1"
 
 # --- Eval-Judge (NUR eval/, nie Teil der Submission-Logik) ---
 # Der echte Wettbewerbs-Judge ist ein unbekanntes, starkes LLM. Beste

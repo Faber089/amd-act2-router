@@ -20,31 +20,70 @@ import ast
 import re
 
 # --- Kategorie-Erkennung (Reihenfolge = Prioritaet) ---
+# WICHTIG (Discord-Klarstellung 9.7.): die finale Bewertung nutzt NEU
+# randomisierte Prompt-Varianten. Der Robustheitstest auf 120 Paraphrasen
+# (eval/tasks_extended.jsonl) zeigte 42/120 Fehlklassifikationen mit den
+# alten engen Keyword-Regexen -> breite Paraphrase-Muster + STRUKTURELLE
+# Code-Erkennung (steht ein Code-Block in der Frage?) statt nur Keywords.
 
-_RULES = [
-    ("summarisation", re.compile(r"summari[sz]e|write a headline|bullet points", re.I)),
-    ("sentiment", re.compile(r"sentiment", re.I)),
-    ("ner", re.compile(r"named entit|entities|labelled by type|label each entity", re.I)),
-    ("code_debugging", re.compile(r"find the bug|fix (this|the) (code|function)|corrected version|debug", re.I)),
-    ("code_generation", re.compile(r"write a (python )?function|implement (a|the) function", re.I)),
-    ("logic_puzzle", re.compile(
-        r"knight|knave|liar|tells? the truth|labels? (is|are) wrong"
-        r"|finished (before|after)|older than|younger than"
-        r"|which day works|each (have|has|own)|exactly one", re.I)),
-    ("math_reasoning", re.compile(
-        r"(percent|%|\btimes\b|plus|minus|divided|discount|grows?|interest"
-        r"|how (many|much)|total|average|price|cost|speed|per (year|month|hour))", re.I)),
-]
+_SUMMARISATION_RE = re.compile(
+    r"summar|condense|tl\W?dr|shorten|boil .{0,20}down|sum up|write a headline"
+    r"|bullet points?|key points|main finding|abstract for|sentence abstract"
+    r"|reduce .{0,40}(email|text|paragraph|article)", re.I)
+_SENTIMENT_RE = re.compile(
+    r"sentiment|emotional tone|attitude|tone of this", re.I)
+_NER_RE = re.compile(
+    r"named entit|entit(y|ies)"
+    r"|(persons?|people|compan(y|ies)|organi[sz]ations?)\b.{0,60}\b(locations?|places?|dates?)", re.I)
+_CODE_PRESENT_RE = re.compile(
+    r"```|\bdef \w+\s*\(|\bclass \w+[:(]|\bprint\s*\(|\breturn\b")
+_DEBUG_SIGNAL_RE = re.compile(
+    r"\bfix\b|\bbug(gy|s)?\b|debug|crash|\berrors?\b|\bwrong\b|broken|hangs?\b|fails?\b"
+    r"|doesn'?t work|not work(ing)?|correct(ed)?\s+(it|this|the|version|code|function)"
+    r"|why does|what('s| is) wrong", re.I)
+_CODEGEN_RE = re.compile(
+    r"(write|implement|creat\w*|build|make|need\w*|give me|provide)\s+(me\s+)?an?\s+(\w+[- ]){0,3}?(function|method|script|program)"
+    r"|function (called|named)", re.I)
+_LOGIC_RE = re.compile(
+    r"knight|knave|liar|tells? the truth|always (lies?|tells?)|labels? (is|are) wrong"
+    r"|finished (before|after)|older than|younger than|taller than|which day works"
+    r"|each (\w+ )?(have|has|owns?|plays?)|exactly one|\bbeats?\b|guilty|innocent"
+    r"|day (before|after) (yesterday|tomorrow)|facing (north|south|east|west)"
+    r"|turns? \d+ degrees|all \w+ are\b|no \w+ is\b|all but \d+"
+    r"|cross .{0,20}bridge|torch"
+    r"|who (finished|came) (first|second|third|last)|seated|sits? (next to|between)", re.I)
+_MATH_RE = re.compile(
+    r"percent|%|\btimes\b|plus|minus|divided|multipl|discount|grows?|interest"
+    r"|how (many|much|far|long|old)|total|average|price|cost|speed|area"
+    r"|per (year|month|week|day|hour|100)|km/h|answer with only the number", re.I)
 
 
 def classify(question):
-    for category, pattern in _RULES:
-        if pattern.search(question):
-            # Mathe-Regel feuert nur, wenn auch Ziffern vorkommen (sonst ist
-            # "how many" oft eine Wissensfrage).
-            if category == "math_reasoning" and not re.search(r"\d", question):
-                continue
-            return category
+    q = question
+    if _SUMMARISATION_RE.search(q):
+        return "summarisation"
+    # Sentiment-Aufgaben nennen praktisch immer die Label-Optionen — das
+    # Wortpaar positive+negative ist robuster als das Wort "sentiment".
+    lowered = q.lower()
+    if _SENTIMENT_RE.search(q) or ("positive" in lowered and "negative" in lowered):
+        return "sentiment"
+    if _NER_RE.search(q):
+        return "ner"
+    # Strukturell: enthaelt die Frage echten Code, ist es eine Code-Aufgabe —
+    # egal wie die Aufforderung formuliert ist ("why does this crash?" etc.).
+    has_code = bool(_CODE_PRESENT_RE.search(q))
+    if has_code and _DEBUG_SIGNAL_RE.search(q):
+        return "code_debugging"
+    if not has_code and _CODEGEN_RE.search(q):
+        return "code_generation"
+    if has_code:
+        # Code ohne klares Debug-Signal: Debugging-Politik ist die sichere
+        # Wahl (hoher max_tokens-Deckel, Code-Checks aktiv).
+        return "code_debugging"
+    if _LOGIC_RE.search(q):
+        return "logic_puzzle"
+    if _MATH_RE.search(q) and re.search(r"\d", q):
+        return "math_reasoning"
     return "factual_knowledge"
 
 
@@ -57,8 +96,11 @@ def classify(question):
 #   sichtbares Denken ist steuerbar, verstecktes nicht.
 # always_escalate: Kategorie ist lokal aussichtslos (Datenlage!).
 
-_COT_HINT = ("Think in at most 3 short steps, no restating the question, "
-             "then give the final line as 'Answer: <result>'.")
+# Experiment 10.7. (22 det-checkbare Logik-Aufgaben, kimi effort=none):
+# 3-Schritt-Hint 22/22 bei 123 Tok/Task, nackte Frage mit effort=low 22/22
+# bei 141 (verstecktes Denken ist TEURER als sichtbares), Minimal-Hint
+# 22/22 bei 105 -> Minimal-Hint gewinnt. Ganz ohne CoT bleibt Logik 0/2.
+_COT_HINT = "Reason very briefly, then end with: Answer: <result>"
 _CODE_HINT = "State the bug in one short sentence, then give the complete corrected code."
 
 # Token-Diaet-Experiment 7.7. spaetabends (nackte Frage, effort=none):
@@ -66,7 +108,13 @@ _CODE_HINT = "State the bug in one short sentence, then give the complete correc
 # -> Mathe braucht KEIN CoT. Logik 0/2 korrekt ohne CoT ("Ann", "apples")
 # -> Logik BEHAELT das Kurz-CoT zwingend. Factual korrekt ohne alles.
 POLICY = {
-    "factual_knowledge": {"remote_max_tokens": 128, "remote_effort": "none"},
+    # local_hint gegen den Kurzantwort-Reflex kleiner Modelle: zweiteilige
+    # Fragen (Practice-Task-Stil!) bekommen sonst nur eine halbe Antwort
+    # ("George Orwell" ohne das Jahr) — gemessen qwen3-Shootout 10.7.
+    "factual_knowledge": {
+        "remote_max_tokens": 128, "remote_effort": "none",
+        "local_hint": "Answer EVERY part of the question, briefly and completely.",
+    },
     "math_reasoning": {
         "remote_max_tokens": 128, "remote_effort": "none",
         "math_crosscheck": True,
@@ -87,21 +135,54 @@ POLICY = {
         # VM-Simulation 8.7.: Antwort+Selfcheck+Nachforderung stapelten sich
         # auf 24,8s (30s-Limit!). Der Selfcheck bringt bei Sentiment am
         # wenigsten (Label-Stabilitaet war nie das Problem) -> raus.
+        # Stattdessen (11.7.): billiger LABEL-Selfcheck — nur das Label des
+        # Zweitlaufs vergleichen, nicht den ganzen Text (Fails 133/136:
+        # instabile Labels bei neutralen Texten).
         "skip_selfcheck": True,
+        "label_selfcheck": True,
     },
     "summarisation": {
         "remote_max_tokens": 192, "remote_effort": "none",
-        "local_hint": ("Obey the requested format EXACTLY (number of sentences, "
-                       "word limit, bullet count) and keep the key facts and figures."),
+        # Judge wertet fehlende Kernfakten als falsch (v4, id 38: Ursachen
+        # weggelassen) — der 7-Token-Hint ist billiger als ein Gate-Fail.
+        "remote_hint": "Keep the key facts and figures.",
+        "local_hint": ("Summarise IN YOUR OWN WORDS - never copy sentences from "
+                       "the source. Obey the requested format EXACTLY (number of "
+                       "sentences, word limit, bullet count) and keep the key "
+                       "facts and figures."),
     },
     "ner": {
         "remote_max_tokens": 128, "remote_effort": "none",
-        "local_hint": ("List EVERY entity with its type label, e.g. "
-                       "Tim Cook (PERSON); Apple (ORGANIZATION); Paris (LOCATION); 1911 (DATE)."),
+        # Straffer Hint (qwen3-Lauf 11.7.: Fantasie-Labels wie (MONTH)/(DAY),
+        # zerhackte Datumsangaben, "revolutionaries" als PERSON):
+        "local_hint": ("List EVERY named entity, each with exactly one of these "
+                       "type labels: PERSON, ORGANIZATION, LOCATION, DATE. Keep "
+                       "multi-word names and dates together as ONE entity. Only "
+                       "proper names and dates - no generic words. Example: "
+                       "Tim Cook (PERSON); Apple (ORGANIZATION); Paris (LOCATION); "
+                       "10 September 2025 (DATE)."),
+        # Eval v2: die NER-Fails waren FEHLENDE Entitaeten, nie falsche.
+        # Zweitlauf + Vereinigungsmenge (0 Tokens) hebt den Recall.
+        "entity_union": True,
+        # Entity-Union sichert objektiv ab; fehlende CONFIDENCE-Zahl (qwen3
+        # bei langen Entity-Listen) soll nicht eskalieren (Lauf 010031: 2x).
+        "default_confidence": 75,
     },
     "code_debugging": {
         "remote_max_tokens": 512, "remote_effort": "none", "remote_hint": _CODE_HINT,
         "local_max_tokens": 512, "reject_identical": True,
+        # qwen3-Router-Lauf 11.7.: 3 Judge-Fails, weil die lokale Antwort den
+        # Bug nur in PROSA erklaerte statt korrigierten Code zu liefern.
+        # Ohne Code kann die Antwort nie korrekt sein -> eskalieren.
+        "require_code": True,
+        # ... und damit es gar nicht erst so weit kommt (Lauf 010031: 4 von 8
+        # Debug-Eskalationen NUR wegen Prosa-Antworten): expliziter Hint.
+        "local_hint": ("Your ANSWER must contain the complete corrected "
+                       "function as code, plus ONE short sentence naming the bug."),
+        # Objektive Checks (Syntax, reject_identical, require_code) sichern
+        # diese Kategorie ab — eine fehlende CONFIDENCE-Zahl (qwen3 laesst
+        # sie bei Code-Antworten oft weg) ist dann kein Eskalationsgrund.
+        "default_confidence": 75,
     },
     "logic_puzzle": {
         "always_escalate": True,
@@ -113,13 +194,13 @@ POLICY = {
     "code_generation": {
         "remote_max_tokens": 512, "remote_effort": "none", "remote_hint": _CODE_HINT,
         "local_max_tokens": 512,
-        # Edge-Case-Signalwoerter = der Aufgabensteller testet genau das,
-        # woran 2B-Modelle scheitern (zweifach belegt: Eval id 60 UND
-        # offizielle practice-08, identischer Duplikat-Bug). Direkt remote —
-        # auf der 2-vCPU-VM auch noch schneller (1-5s statt >20s lokal).
-        "escalate_if": re.compile(
-            r"handling|correctly handle|edge case|duplicat|distinct"
-            r"|empty (list|string)|negative number|robust", re.I),
+        "require_code": True,
+        "default_confidence": 75,
+        # KEIN escalate_if mehr (Stand 11.7.): das Edge-Case-Muster stammte
+        # aus der gemma2-Aera (id-60/practice-08-Duplikat-Bug). qwen3:1.7b
+        # loest Codegen inkl. Edge-Cases lokal (Shootout: 21/23 det, darunter
+        # second_smallest UND factorial-negative) — die Zwangseskalation
+        # kostete im Router-Lauf ~7 Eskalationen ohne Accuracy-Gewinn.
     },
 }
 
@@ -142,11 +223,20 @@ def summarisation_format_violated(question, answer):
     Verstoss -> eskalieren, denn Formatbruch ist ein sicherer Judge-Fail."""
     if not answer:
         return True
+    # Kopie-Erkennung (v4-Lauf 11.7., ids 8/39/42): qwen3 gibt manchmal den
+    # Quelltext woertlich zurueck statt zusammenzufassen. det-Checks sehen
+    # das nicht (alle Keywords da!), der Judge schon. Steht die komplette
+    # Antwort woertlich in der Aufgabe, ist es keine Zusammenfassung.
+    if re.sub(r"[^a-z0-9]", "", answer.lower()) in re.sub(r"[^a-z0-9]", "", question.lower()):
+        return True
     sentences = len([s for s in re.split(r"[.!?]+", answer) if s.strip()])
     match = _SENT_LIMIT_RE.search(question)
     if match:
         limit = _NUM_WORDS.get(match.group(1).lower()) or int(match.group(1))
-        if sentences > limit:
+        # "exactly two sentences" heisst EXAKT: auch zu WENIGE Saetze sind
+        # ein Formatbruch (qwen3-Lauf 11.7., id 148: 1 Satz statt 2 = Fail).
+        exact = "exactly" in match.group(0).lower()
+        if sentences > limit or (exact and sentences != limit):
             return True
     match = _WORD_LIMIT_RE.search(question)
     if match and len(answer.split()) > int(match.group(1)) * 1.2:
@@ -220,6 +310,83 @@ def math_answers_disagree(local_answer, expr_result):
                    for n in answer_numbers)
 
 
+# --- NER-Vereinigungsmenge (0 Tokens, Recall-Boost) ---
+
+_ENTITY_LINE_RE = re.compile(
+    r"([\w][\w .,'&-]{0,50}?)\s*\((PERSON|PEOPLE|ORG\w*|COMPANY|LOCATION|LOC|PLACE|GPE|DATE|TIME|EVENT)\)",
+    re.I)
+
+
+def merge_entities(first, second):
+    """Ergaenzt die Erstantwort um Entitaeten, die NUR der Zweitlauf gefunden
+    hat (Datenlage Eval v2: NER-Fails waren immer fehlende Entitaeten, nie
+    erfundene). Rueckgabe None, wenn nichts zu ergaenzen ist."""
+    if not first or not second:
+        return None
+    first_norm = re.sub(r"[^a-z0-9]", "", first.lower())
+    additions = []
+    for match in _ENTITY_LINE_RE.finditer(second):
+        name = match.group(1).strip(" *-•")
+        name_norm = re.sub(r"[^a-z0-9]", "", name.lower())
+        if name_norm and name_norm not in first_norm:
+            additions.append(f"{name} ({match.group(2).upper()})")
+    if not additions:
+        return None
+    return first.rstrip() + "\n" + "\n".join(dict.fromkeys(additions))
+
+
+_MONTHS = (r"(?:January|February|March|April|May|June|July|August|September"
+           r"|October|November|December)")
+_FULL_DATE_RE = re.compile(
+    rf"\b(?:\d{{1,2}}\s+{_MONTHS}\s+\d{{4}}|{_MONTHS}\s+\d{{1,2}},?\s+\d{{4}}"
+    rf"|{_MONTHS}\s+\d{{4}})\b", re.I)
+
+
+def normalize_entities(question, answer):
+    """Repariert zwei gemessene NER-Schwaechen des Lokalmodells — beides
+    deterministisch, 0 Tokens, nur wenn der Beleg WOERTLICH in der Aufgabe
+    steht (sonst None = nichts aendern):
+      1. Zerhackte Mehrwort-Namen (VM-Sim 11.7., practice-05:
+         'Maria (PERSON); Sanchez (PERSON)' -> 'Maria Sanchez (PERSON)').
+      2. Aufs Jahr gestutzte Datumsangaben (v5-Lauf, ids 43/46:
+         '2024' -> '14 March 2024', wie im Aufgabentext)."""
+    matches = list(_ENTITY_LINE_RE.finditer(answer or ""))
+    if len(matches) < 2:
+        return None
+    items = [[m.group(1).strip(" *-•\t"), m.group(2).upper()] for m in matches]
+    merged, i, changed = [], 0, False
+    while i < len(items):
+        joined = None
+        if i + 1 < len(items) and items[i][1] == items[i + 1][1]:
+            # Leerzeichen-Paar ("Maria Sanchez") ODER Komma-Paar
+            # ("Austin, Texas") — nur wenn es WOERTLICH in der Aufgabe steht.
+            for sep in (" ", ", "):
+                candidate = f"{items[i][0]}{sep}{items[i + 1][0]}"
+                if candidate in question:
+                    joined = candidate
+                    break
+        if joined:
+            merged.append([joined, items[i][1]])
+            i += 2
+            changed = True
+        else:
+            merged.append(items[i])
+            i += 1
+    # Datums-Expansion: steht in der Aufgabe ein volleres Datum, das die
+    # gestutzte DATE-Entitaet enthaelt, gilt das volle Datum.
+    full_dates = _FULL_DATE_RE.findall(question)
+    for item in merged:
+        if item[1] in ("DATE", "TIME"):
+            for full_date in full_dates:
+                if item[0] != full_date and item[0] in full_date:
+                    item[0] = full_date
+                    changed = True
+                    break
+    if not changed:
+        return None
+    return "; ".join(dict.fromkeys(f"{name} ({typ})" for name, typ in merged))
+
+
 # --- Antwort-Nachbearbeitung ---
 
 _ONLY_RE = re.compile(r"answer with (?:only )?(?:the |a )?(number|name|day|word|yes or no)", re.I)
@@ -228,21 +395,23 @@ _FINAL_ANSWER_RE = re.compile(r"(?:^|\n)\s*Answer:\s*(.+?)\s*$", re.I | re.DOTAL
 
 def postprocess_answer(question, text):
     """Wenn die Aufgabe 'Answer with only the number/name/...' verlangt und
-    die (Remote-)Antwort Kurz-CoT enthaelt, nur den finalen Wert ausliefern —
-    der Judge soll keinen Formatverstoss sehen. Konservativ: nur eingreifen,
-    wenn ein klarer 'Answer:'-Marker existiert."""
+    die Antwort Kurz-CoT enthaelt, nur den finalen Wert ausliefern — der
+    Judge soll keinen Formatverstoss sehen. Konservativ: nur eingreifen,
+    wenn ein klarer 'Answer:'-Marker existiert. Zusaetzlich (11.7.):
+    '$83,600' bei 'only the number' ist ein Formatverstoss -> Waehrungs-
+    zeichen/Tausender-Kommas aus kurzen Zahl-Antworten entfernen."""
     if not text:
         return text
+    only = _ONLY_RE.search(question)
     match = _FINAL_ANSWER_RE.search(text)
     if match:
         final = match.group(1).strip()
-        if _ONLY_RE.search(question):
-            return final
         # Auch ohne "only"-Vorgabe: steht ein expliziter Answer-Marker am
-        # Ende, ist alles davor Rechenweg — final reicht, spart nichts an
-        # Tokens (schon bezahlt), aber haelt die Antwort judge-sauber...
-        # ausser der Weg IST die geforderte Antwort (Erklaer-Aufgaben) ->
-        # dann lieber alles behalten.
-        if len(final) <= 80:
-            return final
+        # Ende, ist alles davor Rechenweg — final reicht und haelt die
+        # Antwort judge-sauber... ausser der Weg IST die geforderte Antwort
+        # (Erklaer-Aufgaben) -> dann lieber alles behalten.
+        if only or len(final) <= 80:
+            text = final
+    if only and only.group(1).lower() == "number" and len(text) <= 40:
+        text = re.sub(r"[$€£]|,(?=\d)", "", text).strip()
     return text

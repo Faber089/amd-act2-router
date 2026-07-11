@@ -16,7 +16,9 @@ RUN apt-get update \
 
 # Modellgewichte zur BUILD-Zeit einbacken: ollama kurz starten, Modell ziehen.
 # Die Gewichte landen in /root/.ollama und bleiben im Image-Layer.
-ARG LOCAL_MODEL=gemma2:2b
+# qwen3:1.7b seit 11.7.: schlaegt gemma2:2b im Shootout (Codegen 21/23 det
+# lokal, Logik 5/8 statt 3/8 no-think, schneller, kleineres Image).
+ARG LOCAL_MODEL=qwen3:1.7b
 RUN ollama serve & \
     i=0; until ollama list >/dev/null 2>&1; do \
         i=$((i+1)); [ "$i" -ge 30 ] && echo "ollama not ready" && exit 1; sleep 1; \
@@ -37,7 +39,10 @@ RUN chmod +x /app/entrypoint.sh
 
 # Der Router spricht das MITGELIEFERTE Ollama im Container (127.0.0.1),
 # nicht mehr host.docker.internal. Fuer lokale Entwicklung weiterhin per
-# Env-Var uebersteuerbar.
+# Env-Var uebersteuerbar. LOCAL_BACKEND muss hier explizit auf ollama
+# stehen — der Dev-Default ist seit 11.7. lmstudio (GPU auf Sebastians
+# Rechner), im Container gibt es aber nur das eingebackene Ollama.
+ENV LOCAL_BACKEND=ollama
 ENV OLLAMA_BASE_URL=http://127.0.0.1:11434/v1
 ENV LOCAL_MODEL=${LOCAL_MODEL}
 

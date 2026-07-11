@@ -19,9 +19,26 @@ import os
 import sys
 import time
 
+from router.categories import classify, get_policy, postprocess_answer
 from router.local_client import ask_local_raw
 from router.main import route
-from router.remote_client import ask_remote
+from router.remote_client import ask_remote, resolve_model
+
+
+def ask_remote_with_policy(prompt):
+    """Remote-direkt MIT Kategorie-Politik: der nackte ask_remote-Call war
+    ein Accuracy-Loch im Budget-Flip (Logik ohne CoT-Hint: gemessen 0/2).
+    Kategorie-Erkennung ist lokal/kostenlos, die Politik liefert max_tokens,
+    reasoning_effort und Hint wie in der normalen Kaskade."""
+    policy = get_policy(classify(prompt))
+    answer, tokens = ask_remote(
+        prompt,
+        model=resolve_model(policy.get("remote_model")),
+        max_tokens=policy.get("remote_max_tokens"),
+        reasoning_effort=policy.get("remote_effort"),
+        hint=policy.get("remote_hint"),
+    )
+    return postprocess_answer(prompt, answer), tokens
 
 INPUT_PATH = os.environ.get("TASKS_INPUT_PATH", "/input/tasks.json")
 OUTPUT_PATH = os.environ.get("RESULTS_OUTPUT_PATH", "/output/results.json")
@@ -98,7 +115,7 @@ def main():
             answer, tokens, source = "", 0, "error"
             if remote_only:
                 try:
-                    answer, tokens = ask_remote(prompt)
+                    answer, tokens = ask_remote_with_policy(prompt)
                     source = "remote-direct"
                 except Exception as exc:
                     print(f"WARN: remote-direct failed for {task_id}: {exc}", file=sys.stderr)
@@ -113,7 +130,7 @@ def main():
                 except Exception as exc:
                     print(f"WARN: task {task_id} failed: {exc}", file=sys.stderr)
                     try:
-                        answer, tokens = ask_remote(prompt)
+                        answer, tokens = ask_remote_with_policy(prompt)
                         source = "remote-direct"
                     except Exception as exc2:
                         print(f"WARN: remote fallback failed for {task_id}: {exc2}", file=sys.stderr)

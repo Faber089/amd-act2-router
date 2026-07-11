@@ -8,6 +8,8 @@ from router.categories import (
     format_number,
     get_policy,
     math_answers_disagree,
+    merge_entities,
+    normalize_entities,
     numbers_in,
     postprocess_answer,
     safe_eval_expression,
@@ -21,12 +23,17 @@ from router.judge import (
     parse_local_answer,
 )
 from router.local_client import ask_local, ask_local_raw
-from router.remote_client import ask_remote
+from router.remote_client import ask_remote, resolve_model
 
 
 def _norm(s):
     """Antworten fuer den Konsistenz-Vergleich vereinheitlichen."""
     return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+_SENTIMENT_LABEL_RE = re.compile(r"\b(positive|negative|neutral|mixed)\b", re.I)
+_TWO_PART_RE = re.compile(
+    r",\s*and\s+(what|which|who|when|where|how|in which)\b", re.I)
 
 
 def _local_math_expression(question, local_model, temperature=None):
@@ -54,6 +61,7 @@ def _ask_remote_with_policy(question, policy, stats):
     fuer Logik, Code-only fuer Code-Aufgaben — sonst nackte Frage)."""
     text, tokens = ask_remote(
         question,
+        model=resolve_model(policy.get("remote_model")),
         max_tokens=policy.get("remote_max_tokens"),
         stats=stats,
         reasoning_effort=policy.get("remote_effort"),
@@ -113,9 +121,11 @@ def route(question, confidence_threshold=None, local_model=None,
         model=local_model,
         hint=policy.get("local_hint"),
         max_tokens=policy.get("local_max_tokens"),
+        think=policy.get("local_think"),
     )
     answer, is_trustworthy, confidence = parse_local_answer(
-        local_text, threshold=confidence_threshold
+        local_text, threshold=confidence_threshold,
+        default_confidence=policy.get("default_confidence", 0),
     )
     if stats is not None:
         stats["confidence"] = confidence
@@ -144,6 +154,7 @@ def route(question, confidence_threshold=None, local_model=None,
             temperature=config.SELFCHECK_TEMPERATURE,
             hint=policy.get("local_hint"),
             max_tokens=policy.get("local_max_tokens"),
+            think=policy.get("local_think"),
         )
         check_answer, _, _ = parse_local_answer(check_text, threshold=confidence_threshold)
         # Zahlen numerisch vergleichen: '30' vs '30.0' ist KEIN Widerspruch
@@ -197,6 +208,35 @@ def route(question, confidence_threshold=None, local_model=None,
             if stats is not None:
                 stats["summary_format_violated"] = True
 
+    # NER-Vereinigungsmenge (0 Tokens): der Zweitlauf findet oft Entitaeten,
+    # die der Erstlauf ausgelassen hat (Eval v2: alle NER-Fails waren
+    # FEHLENDE Entitaeten, nie erfundene). Nur ergaenzen, nie ersetzen.
+    if not escalate and policy.get("entity_union") and local_time_left() > 5:
+        try:
+            second_text, _ = ask_local(
+                question,
+                model=local_model,
+                temperature=config.SELFCHECK_TEMPERATURE,
+                hint=policy.get("local_hint"),
+                max_tokens=policy.get("local_max_tokens"),
+                think=policy.get("local_think"),
+            )
+            second_answer, _, _ = parse_local_answer(
+                second_text, threshold=confidence_threshold
+            )
+            merged = merge_entities(answer, second_answer)
+            if merged:
+                answer = merged
+                if stats is not None:
+                    stats["entity_union_added"] = True
+        except Exception:
+            pass
+        # Zerhackte Mehrwort-Namen reparieren ('Maria (PERSON); Sanchez
+        # (PERSON)' -> 'Maria Sanchez (PERSON)') — deterministisch, 0 Tokens.
+        normalized = normalize_entities(question, answer)
+        if normalized:
+            answer = normalized
+
     # Objektiver Code-Check (lokal = 0 Tokens, kein exec, nur ast.parse):
     # deckt Code Debugging/Generation ab, wo Selbst-Konsistenz wegen der
     # Antwortlaenge nicht greift. Syntaktisch kaputter Code kann in keiner
@@ -215,6 +255,59 @@ def route(question, confidence_threshold=None, local_model=None,
             reason = "Antwort-Code ist identisch mit dem fehlerhaften Original"
             if stats is not None:
                 stats["identical_code"] = True
+
+    # Code-Pflicht (11.7.): Debugging-/Codegen-Antworten, die den Fix nur in
+    # PROSA beschreiben statt Code zu liefern, sind sichere Judge-Fails
+    # (3 Fails im qwen3-Router-Lauf). Ohne Code -> eskalieren.
+    if not escalate and policy.get("require_code") and not looks_like_code(answer):
+        escalate = True
+        reason = "Code-Aufgabe, aber keine Code-Antwort"
+        if stats is not None:
+            stats["no_code_answer"] = True
+
+    # Label-Selfcheck fuer Sentiment (11.7., billiger als der volle
+    # Selbstkonsistenz-Check): (a) mehrteilige Aufgaben ((1)...(2)...) muessen
+    # pro Teil ein Label liefern (Fail 143: nur Teil 1 beantwortet),
+    # (b) das Label des Zweitlaufs muss zum Erstlauf passen (Fails 133/136:
+    # instabile Labels bei neutralen Texten). Nur Label vergleichen, nicht
+    # den Begruendungstext — der variiert immer.
+    if not escalate and policy.get("label_selfcheck"):
+        parts = len(re.findall(r"\(\d\)", question))
+        labels_found = _SENTIMENT_LABEL_RE.findall(answer)
+        if parts >= 2 and len(labels_found) < parts:
+            escalate = True
+            reason = f"mehrteilige Sentiment-Aufgabe: {len(labels_found)}/{parts} Labels"
+        elif not labels_found:
+            escalate = True
+            reason = "kein Sentiment-Label in der Antwort erkennbar"
+        elif local_time_left() > 5:
+            check_text, _ = ask_local(
+                question,
+                model=local_model,
+                temperature=config.SELFCHECK_TEMPERATURE,
+                hint=policy.get("local_hint"),
+                max_tokens=policy.get("local_max_tokens"),
+                think=policy.get("local_think"),
+            )
+            check_answer, _, _ = parse_local_answer(
+                check_text, threshold=confidence_threshold
+            )
+            check_label = _SENTIMENT_LABEL_RE.search(check_answer)
+            if check_label and check_label.group(1).lower() != labels_found[0].lower():
+                escalate = True
+                reason = (f"Label-Selfcheck widerspricht "
+                          f"('{labels_found[0]}' vs '{check_label.group(1)}')")
+                if stats is not None:
+                    stats["label_selfcheck_disagreed"] = True
+
+    # Zweiteilige Wissensfragen (Practice-Task-Stil "..., and what/which..."):
+    # eine verdaechtig kurze Antwort beantwortet fast sicher nur einen Teil
+    # (qwen3-Lauf 11.7., Fail 109: 'France' ohne das Jahrzehnt). Die
+    # Eskalation kostet ~25-30 Tokens — billiger als ein Gate-Fail.
+    if (not escalate and category == "factual_knowledge"
+            and _TWO_PART_RE.search(question) and len(answer.strip()) < 40):
+        escalate = True
+        reason = "zweiteilige Frage, verdaechtig kurze Antwort"
 
     # Sentiment-Sicherheitsnetz (Eval v2: 5 Judge-Fails, weil gemma2:2b nur
     # das nackte Label lieferte, obwohl die Aufgabe eine Begruendung verlangt).
@@ -241,7 +334,9 @@ def route(question, confidence_threshold=None, local_model=None,
     if not escalate:
         if verbose:
             print(f"[LOKAL, Vertrauen={confidence}] -> keine Eskalation, 0 Tokens")
-        return answer, 0, "local"
+        # postprocess auch lokal: '$83,600' bei "only the number" waere ein
+        # Formatverstoss, egal woher die Antwort kommt.
+        return postprocess_answer(question, answer), 0, "local"
 
     if stats is not None:
         stats["escalation_reason"] = reason

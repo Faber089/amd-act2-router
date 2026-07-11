@@ -36,6 +36,7 @@ from pathlib import Path
 
 from eval.judge_llm import judge_many
 from router import config
+from router.categories import classify
 from router.judge import extract_code, is_valid_python, parse_local_answer
 from router.local_client import ask_local
 from router.main import route
@@ -52,9 +53,9 @@ RESULTS_DIR = Path(__file__).parent / "results"
 _NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
 
 
-def load_tasks():
+def load_tasks(path=None):
     tasks = []
-    with open(TASKS_FILE, encoding="utf-8") as f:
+    with open(path or TASKS_FILE, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
@@ -192,13 +193,40 @@ def main():
                         default=config.EVAL_JUDGE_BACKEND)
     parser.add_argument("--limit", type=int, default=0, help="nur die ersten N Aufgaben")
     parser.add_argument("--category", default="", help="nur diese Kategorie")
+    parser.add_argument("--tasks", default="", help="alternative Task-Datei (jsonl)")
+    parser.add_argument("--classify-only", action="store_true",
+                        help="nur die Kategorie-Erkennung pruefen (0 LLM-Calls, sofort)")
     args = parser.parse_args()
 
-    tasks = load_tasks()
+    tasks = load_tasks(args.tasks or None)
     if args.category:
         tasks = [t for t in tasks if t["category"] == args.category]
     if args.limit:
         tasks = tasks[: args.limit]
+
+    # Kategorie-Erkennung gegen die Ground-Truth der Task-Datei pruefen —
+    # die finale Bewertung nutzt NEU randomisierte Prompts (Discord 9.7.),
+    # d. h. die Regex-Erkennung muss Paraphrasen aushalten. Kostenlos.
+    mismatches = [(t["id"], t["category"], classify(t["question"])) for t in tasks
+                  if classify(t["question"]) != t["category"]]
+    ok = len(tasks) - len(mismatches)
+    print(f"Kategorie-Erkennung: {ok}/{len(tasks)} korrekt"
+          + (f" — {len(mismatches)} FEHLKLASSIFIKATIONEN:" if mismatches else ""))
+    for tid, want, got in mismatches:
+        print(f"   [{tid}] erwartet={want:<18} erkannt={got}")
+    if args.classify_only:
+        return
+
+    # Preflight: ist das lokale Backend ueberhaupt erreichbar? Ein toter
+    # Ollama-Prozess hat am 11.7. DREI Laeufe (inkl. Judge-Kosten) entwertet
+    # — lieber sofort abbrechen als 10 Minuten Muell messen.
+    if args.mode != "remote":
+        from router.local_client import ask_local_raw
+        try:
+            ask_local_raw("ping", max_tokens=4)
+        except Exception as exc:
+            print(f"ABBRUCH: lokales Backend nicht erreichbar ({exc})")
+            sys.exit(1)
 
     print(f"=== EVAL v2 | mode={args.mode} | judge={args.judge} | {len(tasks)} Aufgaben ===\n")
 

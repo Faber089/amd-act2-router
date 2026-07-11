@@ -35,10 +35,14 @@ def is_valid_python(code):
         return False
 
 
-def parse_local_answer(text, threshold=70):
+def parse_local_answer(text, threshold=70, default_confidence=0):
     """
     Liest aus der lokalen Modellantwort die ANSWER und das CONFIDENCE heraus.
-    Gibt zurück: (antwort_text, ist_vertrauenswuerdig)
+    Gibt zurück: (antwort_text, ist_vertrauenswuerdig, confidence)
+    default_confidence: gilt, wenn der CONFIDENCE-Marker fehlt. 0 (streng)
+    fuer Kategorien ohne objektive Checks; Kategorien MIT objektiven Checks
+    (Code-Syntax, Entity-Union) setzen per Politik einen milderen Wert,
+    weil qwen3 den Marker bei langen Code-/Listen-Antworten oft weglaesst.
     """
     # Nicht am ersten Zeilenumbruch stoppen (frueherer Bug) -- sonst wird
     # mehrzeiliger Code/Text in der Antwort fast komplett abgeschnitten.
@@ -47,7 +51,8 @@ def parse_local_answer(text, threshold=70):
     confidence_match = re.search(r"CONFIDENCE:\s*(\d+)", text)
 
     answer = answer_match.group(1).strip() if answer_match else text.strip()
-    confidence = int(confidence_match.group(1)) if confidence_match else 0
+    confidence = (int(confidence_match.group(1)) if confidence_match
+                  else default_confidence)
 
     is_trustworthy = confidence >= threshold
     return answer, is_trustworthy, confidence

@@ -19,6 +19,19 @@ _client = OpenAI(
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 
+def resolve_model(preference):
+    """Multi-Modell-Routing: findet das erste Modell aus ALLOWED_MODELS
+    (Laufzeit-Env, nie hardcoden!), dessen ID den Praeferenz-Substring
+    enthaelt. Kein Treffer -> Default-Modell. So kann die Kategorie-Politik
+    z. B. Logik auf gemma-4-26b-a4b schicken, ohne dass ein falscher/alter
+    Modellname je einen MODEL_VIOLATION ausloest."""
+    if preference:
+        for m in config.ALLOWED_MODELS:
+            if preference in m:
+                return m
+    return config.REMOTE_MODEL
+
+
 def ask_remote(question, model=None, max_tokens=None, stats=None, reasoning_effort=None,
                hint=None):
     model = model or config.REMOTE_MODEL
@@ -47,6 +60,13 @@ def ask_remote(question, model=None, max_tokens=None, stats=None, reasoning_effo
     except Exception as exc:
         if "extra_body" in kwargs and "400" in str(exc):
             kwargs.pop("extra_body")
+            response = _client.chat.completions.create(**kwargs)
+        elif (kwargs["model"] != config.REMOTE_MODEL
+                and ("404" in str(exc) or "NOT_FOUND" in str(exc))):
+            # Ein per Politik gewaehltes Alternativ-Modell ist auf dem
+            # Wettbewerbs-Proxy nicht verfuegbar -> einmal mit dem Default-
+            # Modell wiederholen statt die Aufgabe zu verlieren.
+            kwargs["model"] = config.REMOTE_MODEL
             response = _client.chat.completions.create(**kwargs)
         else:
             raise
