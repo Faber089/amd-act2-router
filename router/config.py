@@ -101,6 +101,19 @@ EVAL_JUDGE_MODEL = os.environ.get(
 )
 EVAL_JUDGE_LOCAL_MODEL = os.environ.get("EVAL_JUDGE_LOCAL_MODEL", "qwen3.5:latest")
 
+# Aggressivitaets-STUFEN fuer die Doppel-Submission-Strategie (im Image per
+# --build-arg AGGRESSIVE=N baken; erst einsetzen, wenn die sichere Variante
+# das Gate nachweislich besteht!):
+#   0 = sichere Kaskade (Default)
+#   1 = Logik bleibt LOKAL (teuerste Kategorie; gemessen 65% statt 100%
+#       Logik-Accuracy, ~-4 Gesamtpunkte, ~-900 Tokens auf 64er-Skala)
+#   2 = ULTRA: zusaetzlich Summarisation/Zwei-Teil-Factual nie eskalieren
+#       + Confidence-Schwelle 40 — Token-Minimum, Gate-Roulette (~-8 Punkte)
+try:
+    AGGRESSIVE = int(os.environ.get("AGGRESSIVE", "0") or "0")
+except ValueError:
+    AGGRESSIVE = 0
+
 # --- Routing-Verhalten ---
 # Ab welcher Selbsteinschaetzung wird der lokalen Antwort vertraut.
 CONFIDENCE_THRESHOLD = int(os.environ.get("CONFIDENCE_THRESHOLD", "70"))

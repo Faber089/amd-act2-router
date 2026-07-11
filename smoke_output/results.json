@@ -1,7 +1,7 @@
 [
   {
     "task_id": "practice-01",
-    "answer": "The capital of Australia is **Canberra**.\n\nIt is located near **Lake Burley Griffin**, an artificial lake in the center of the city. Canberra is also situated in the **Australian Capital Territory (ACT)**, inland between Australia's two largest cities, Sydney and Melbourne."
+    "answer": "The capital of Australia is **Canberra**.\n\nIt is located near **Lake Burley Griffin**, an artificial lake in the center of the city. Canberra is also situated in the Australian Capital Territory (ACT), inland from Australia's southeastern coast."
   },
   {
     "task_id": "practice-02",
@@ -13,11 +13,11 @@
   },
   {
     "task_id": "practice-04",
-    "answer": "The AMD Developer Hackathon ACT II is a week-long online event where participants build token-efficient AI agents on Fireworks AI models, competing in three tracks for over twenty thousand dollars in prizes."
+    "answer": "The AMD Developer Hackathon ACT II is a week-long online event where participants develop token-efficient AI agents using Fireworks AI models, competing in three tracks for over twenty thousand dollars in prizes."
   },
   {
     "task_id": "practice-05",
-    "answer": "Maria (PERSON); Sanchez (PERSON); Fireworks AI (ORGANIZATION); Berlin (LOCATION); March (DATE)"
+    "answer": "Maria Sanchez (PERSON); Fireworks AI (ORGANIZATION); Berlin (LOCATION); March (DATE)"
   },
   {
     "task_id": "practice-06",

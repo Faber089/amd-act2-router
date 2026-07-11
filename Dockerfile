@@ -45,6 +45,10 @@ RUN chmod +x /app/entrypoint.sh
 ENV LOCAL_BACKEND=ollama
 ENV OLLAMA_BASE_URL=http://127.0.0.1:11434/v1
 ENV LOCAL_MODEL=${LOCAL_MODEL}
+# Zweit-Submission-Variante: --build-arg AGGRESSIVE=1 laesst Logik lokal
+# (Token-Minimum, ~4 Accuracy-Punkte Risiko) — Default ist die sichere Kaskade.
+ARG AGGRESSIVE=0
+ENV AGGRESSIVE=${AGGRESSIVE}
 
 # Wettbewerbs-Ablauf: Ollama starten, warten bis bereit, dann Batch-Lauf
 # (liest /input/tasks.json, schreibt /output/results.json, Exit 0 = Erfolg).

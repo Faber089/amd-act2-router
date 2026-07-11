@@ -84,6 +84,9 @@ def route(question, confidence_threshold=None, local_model=None,
     confidence_threshold = (
         config.CONFIDENCE_THRESHOLD if confidence_threshold is None else confidence_threshold
     )
+    if config.AGGRESSIVE >= 2:
+        # Ultra-Modus: nur noch krasses Selbst-Misstrauen eskaliert.
+        confidence_threshold = min(confidence_threshold, 40)
     local_model = local_model or config.LOCAL_MODEL
     use_critique = config.USE_CRITIQUE if use_critique is None else use_critique
 
@@ -96,7 +99,8 @@ def route(question, confidence_threshold=None, local_model=None,
     # 7.7.): logic_puzzle lokal 3/8 korrekt und ALLE Fehler mit Confidence
     # 100 — die Kaskade kann diese Fehler nicht erkennen, nur vermeiden.
     escalate_pattern = policy.get("escalate_if")
-    if policy.get("always_escalate") or (escalate_pattern and escalate_pattern.search(question)):
+    if ((policy.get("always_escalate") and not config.AGGRESSIVE)
+            or (escalate_pattern and escalate_pattern.search(question))):
         if stats is not None:
             stats["escalation_reason"] = f"policy: {category} direkt remote"
         if verbose:
@@ -195,18 +199,41 @@ def route(question, confidence_threshold=None, local_model=None,
 
     # Summarisation-Format-Gate (lokal = 0 Tokens): geforderte Satzzahl/
     # Wortlimit/Bullet-Anzahl aus der Aufgabe parsen und pruefen. Ein
-    # Formatverstoss ist ein sicherer Judge-Fail — dann lieber eskalieren.
-    # Env SUMMARISATION_ALWAYS_ESCALATE=1 als harte Variante, falls das
-    # Leaderboard zeigt, dass die lokale Summarisation-Qualitaet nicht reicht.
+    # Formatverstoss ist ein sicherer Judge-Fail. NEU 11.7. (Token-Diaet):
+    # vor der Eskalation EIN strenger lokaler Zweitversuch — 17 von 40
+    # Eskalationen waren Summarisation, die Haelfte davon nur Formatfehler,
+    # die ein Retry mit explizitem Fehler-Feedback lokal behebt (0 Tokens).
     if not escalate and category == "summarisation":
         if SUMMARISATION_ALWAYS_ESCALATE:
             escalate = True
             reason = "Politik: Summarisation immer eskalieren (Env-Schalter)"
         elif summarisation_format_violated(question, answer):
-            escalate = True
-            reason = "Summarisation-Formatvorgabe verletzt"
-            if stats is not None:
-                stats["summary_format_violated"] = True
+            retried = False
+            if local_time_left() > 6:
+                try:
+                    retry_text, _ = ask_local_raw(
+                        f"Task: {question}\n"
+                        "Your previous summary violated the requested format or "
+                        "copied the source text. Write the summary again IN YOUR "
+                        "OWN WORDS and obey the requested format EXACTLY (sentence "
+                        "count, word limit, bullet count). Reply with ONLY the summary.",
+                        model=local_model,
+                        max_tokens=policy.get("local_max_tokens"),
+                        think=policy.get("local_think"),
+                    )
+                    retry_text = retry_text.strip()
+                    if retry_text and not summarisation_format_violated(question, retry_text):
+                        answer = retry_text
+                        retried = True
+                        if stats is not None:
+                            stats["summary_local_retry"] = True
+                except Exception:
+                    pass
+            if not retried and config.AGGRESSIVE < 2:
+                escalate = True
+                reason = "Summarisation-Formatvorgabe verletzt (auch nach Retry)"
+                if stats is not None:
+                    stats["summary_format_violated"] = True
 
     # NER-Vereinigungsmenge (0 Tokens): der Zweitlauf findet oft Entitaeten,
     # die der Erstlauf ausgelassen hat (Eval v2: alle NER-Fails waren
@@ -257,13 +284,39 @@ def route(question, confidence_threshold=None, local_model=None,
                 stats["identical_code"] = True
 
     # Code-Pflicht (11.7.): Debugging-/Codegen-Antworten, die den Fix nur in
-    # PROSA beschreiben statt Code zu liefern, sind sichere Judge-Fails
-    # (3 Fails im qwen3-Router-Lauf). Ohne Code -> eskalieren.
+    # PROSA beschreiben statt Code zu liefern, sind sichere Judge-Fails.
+    # Token-Diaet: erst EIN strenger lokaler Zweitversuch (0 Tokens) mit
+    # Syntax-Validierung — nur wenn auch der scheitert, wird eskaliert
+    # (12 Debug-Eskalationen in den letzten Laeufen, viele nur Prosa).
     if not escalate and policy.get("require_code") and not looks_like_code(answer):
-        escalate = True
-        reason = "Code-Aufgabe, aber keine Code-Antwort"
-        if stats is not None:
-            stats["no_code_answer"] = True
+        retried = False
+        if local_time_left() > 6:
+            try:
+                retry_text, _ = ask_local_raw(
+                    f"Task: {question}\n"
+                    "Reply with the COMPLETE working Python code (a full function "
+                    "definition) plus at most one short sentence. No explanations "
+                    "without code.",
+                    model=local_model,
+                    max_tokens=policy.get("local_max_tokens"),
+                    think=policy.get("local_think"),
+                )
+                retry_text = retry_text.strip()
+                retry_code = extract_code(retry_text)
+                if (looks_like_code(retry_text) and is_valid_python(retry_code)
+                        and not (policy.get("reject_identical")
+                                 and retry_code and _norm(retry_code) in _norm(question))):
+                    answer = retry_text
+                    retried = True
+                    if stats is not None:
+                        stats["code_local_retry"] = True
+            except Exception:
+                pass
+        if not retried:
+            escalate = True
+            reason = "Code-Aufgabe, aber keine Code-Antwort (auch nach Retry)"
+            if stats is not None:
+                stats["no_code_answer"] = True
 
     # Label-Selfcheck fuer Sentiment (11.7., billiger als der volle
     # Selbstkonsistenz-Check): (a) mehrteilige Aufgaben ((1)...(2)...) muessen
@@ -294,11 +347,39 @@ def route(question, confidence_threshold=None, local_model=None,
             )
             check_label = _SENTIMENT_LABEL_RE.search(check_answer)
             if check_label and check_label.group(1).lower() != labels_found[0].lower():
-                escalate = True
-                reason = (f"Label-Selfcheck widerspricht "
-                          f"('{labels_found[0]}' vs '{check_label.group(1)}')")
-                if stats is not None:
-                    stats["label_selfcheck_disagreed"] = True
+                # Token-Diaet 11.7.: statt sofort zu eskalieren entscheidet
+                # ein DRITTER lokaler Lauf per Mehrheit (0 Tokens). Nur wenn
+                # auch der kein klares 2:1 liefert, geht es remote.
+                third_label = None
+                if local_time_left() > 5:
+                    try:
+                        third_text, _ = ask_local(
+                            question,
+                            model=local_model,
+                            temperature=config.SELFCHECK_TEMPERATURE,
+                            hint=policy.get("local_hint"),
+                            max_tokens=policy.get("local_max_tokens"),
+                            think=policy.get("local_think"),
+                        )
+                        third_answer, _, _ = parse_local_answer(
+                            third_text, threshold=confidence_threshold
+                        )
+                        third = _SENTIMENT_LABEL_RE.search(third_answer)
+                        third_label = third.group(1).lower() if third else None
+                    except Exception:
+                        pass
+                if third_label == check_label.group(1).lower():
+                    # 2:1 fuer das Zweitlauf-Label -> uebernehmen (Begruendung
+                    # haengt das Sicherheitsnetz unten ggf. wieder an).
+                    answer = check_answer
+                    if stats is not None:
+                        stats["label_majority_flip"] = True
+                elif third_label != labels_found[0].lower():
+                    escalate = True
+                    reason = (f"Label-Selfcheck uneinig "
+                              f"('{labels_found[0]}' vs '{check_label.group(1)}' vs '{third_label}')")
+                    if stats is not None:
+                        stats["label_selfcheck_disagreed"] = True
 
     # Zweiteilige Wissensfragen (Practice-Task-Stil "..., and what/which..."):
     # IMMER eskalieren. Datenlage 11.7.: kurze Antworten beantworten nur
@@ -307,7 +388,7 @@ def route(question, confidence_threshold=None, local_model=None,
     # River' statt Lake Burley Griffin — Selfcheck blind, weil konsistent
     # falsch). ~50 Tokens sind billiger als ein sicherer Gate-Fail.
     if (not escalate and category == "factual_knowledge"
-            and _TWO_PART_RE.search(question)):
+            and _TWO_PART_RE.search(question) and config.AGGRESSIVE < 2):
         escalate = True
         reason = "zweiteilige Wissensfrage -> remote (confident-wrong-Risiko)"
 
