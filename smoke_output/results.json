@@ -1,7 +1,7 @@
 [
   {
     "task_id": "practice-01",
-    "answer": "The capital of Australia is **Canberra**.\n\nIt is located near **Lake Burley Griffin**, an artificial lake in the center of the city. Canberra is also situated in the Australian Capital Territory (ACT), inland from Australia's southeastern coast."
+    "answer": "The capital of Australia is **Canberra**.\n\nIt is located near **Lake Burley Griffin**, an artificial lake in the center of the city. Canberra is also situated in the **Australian Capital Territory (ACT)**, inland from Australia's southeastern coast."
   },
   {
     "task_id": "practice-02",
@@ -25,7 +25,7 @@
   },
   {
     "task_id": "practice-07",
-    "answer": "Sam owns the cat."
+    "answer": "Sam"
   },
   {
     "task_id": "practice-08",
