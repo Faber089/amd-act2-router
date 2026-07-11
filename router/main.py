@@ -301,13 +301,15 @@ def route(question, confidence_threshold=None, local_model=None,
                     stats["label_selfcheck_disagreed"] = True
 
     # Zweiteilige Wissensfragen (Practice-Task-Stil "..., and what/which..."):
-    # eine verdaechtig kurze Antwort beantwortet fast sicher nur einen Teil
-    # (qwen3-Lauf 11.7., Fail 109: 'France' ohne das Jahrzehnt). Die
-    # Eskalation kostet ~25-30 Tokens — billiger als ein Gate-Fail.
+    # IMMER eskalieren. Datenlage 11.7.: kurze Antworten beantworten nur
+    # einen Teil (Fail 109: 'France' ohne Jahrzehnt), und selbst komplette
+    # Antworten sind confident-wrong (finale VM-Sim, practice-01: 'Murray
+    # River' statt Lake Burley Griffin — Selfcheck blind, weil konsistent
+    # falsch). ~50 Tokens sind billiger als ein sicherer Gate-Fail.
     if (not escalate and category == "factual_knowledge"
-            and _TWO_PART_RE.search(question) and len(answer.strip()) < 40):
+            and _TWO_PART_RE.search(question)):
         escalate = True
-        reason = "zweiteilige Frage, verdaechtig kurze Antwort"
+        reason = "zweiteilige Wissensfrage -> remote (confident-wrong-Risiko)"
 
     # Sentiment-Sicherheitsnetz (Eval v2: 5 Judge-Fails, weil gemma2:2b nur
     # das nackte Label lieferte, obwohl die Aufgabe eine Begruendung verlangt).
